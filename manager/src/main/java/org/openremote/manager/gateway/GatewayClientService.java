@@ -232,15 +232,37 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 getClientSessionKey(connection)+"Asset",
                 AssetEvent.class,
                 new AssetFilter<AssetEvent>().setRealm(connection.getLocalRealm()),
-                assetEvent ->
-                    sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, assetEvent)));
+                assetEvent -> {
+                    boolean isUserAsset = false;
+                    if (connection.getLocalUser().isEmpty())
+                        isUserAsset = true;
+                    else
+                        isUserAsset = assetStorageService.isUserAsset(
+                            identityService.getIdentityProvider().getUserByUsername(connection.getLocalRealm(), connection.getLocalUser()).getId(),
+                            assetEvent.getAssetId()
+                        );
+                    LOG.info("AssetEvent: {AssetId: " + assetEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: "+ isUserAsset + "}");
+                    if (isUserAsset)
+                        sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, assetEvent));
+                });
 
             clientEventService.addInternalSubscription(
                 getClientSessionKey(connection)+"Attribute",
                 AttributeEvent.class,
                 new AssetFilter<AttributeEvent>().setRealm(connection.getLocalRealm()),
-                attributeEvent ->
-                    sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, attributeEvent)));
+                attributeEvent -> {
+                    boolean isUserAsset = false;
+                    if (connection.getLocalUser().isEmpty())
+                        isUserAsset = true;
+                    else
+                        isUserAsset = assetStorageService.isUserAsset(
+                            identityService.getIdentityProvider().getUserByUsername(connection.getLocalRealm(), connection.getLocalUser()).getId(),
+                            attributeEvent.getAssetId()
+                        );
+                    LOG.info("attributeEvent: {AssetId: " + attributeEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: "+ isUserAsset + "}");
+                    if (isUserAsset)
+                        sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, attributeEvent));
+                });
 
             client.connect();
             return client;
@@ -340,7 +362,15 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 AssetQuery query = readAssets.getAssetQuery();
                 // Force realm to be the one that this client is associated with
                 query.realm(new RealmPredicate(connection.getLocalRealm()));
+
+                if (connection.getLocalUser().isEmpty() == false)
+                    query.userIds(
+                        identityService.getIdentityProvider().getUserByUsername(connection.getLocalRealm(), connection.getLocalUser()).getId()
+                    );
+
                 List<Asset<?>> assets = assetStorageService.findAll(readAssets.getAssetQuery());
+
+                LOG.info("Request from central manager to read assets: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", AssetQuery=" + query + ", Assets<?>=" + assets);
 
                 sendCentralManagerMessage(
                     connection.getId(),

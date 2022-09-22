@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.openremote.model.event.shared.SharedEvent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -39,7 +40,10 @@ public class AssetsEvent extends SharedEvent {
     }
 
     public List<Asset<?>> getAssets() {
-        return assets;
+        if (assets == null)
+            return new ArrayList<Asset<?>>();
+        else
+            return assets;
     }
 
     @Override

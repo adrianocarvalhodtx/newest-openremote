@@ -322,7 +322,7 @@ public class GatewayConnector {
         String[] requestAssetIds = syncAssetIds.stream().skip(syncIndex).limit(SYNC_ASSET_BATCH_SIZE).toArray(String[]::new);
         expectedSyncResponseName = ASSET_READ_EVENT_NAME_BATCH + syncIndex;
 
-        LOG.fine("Synchronising gateway assets " + syncIndex+1 + "-" + syncIndex + requestAssetIds.length + " of " + syncAssetIds.size());
+        LOG.fine("Synchronising gateway assets " + (syncIndex+1) + "-" + (syncIndex + requestAssetIds.length) + " of " + syncAssetIds.size());
 
         sendMessageToGateway(
             new EventRequestResponseWrapper<>(
