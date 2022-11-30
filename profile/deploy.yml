@@ -42,6 +42,10 @@ services:
 #      - proxy-data:/deployment
     environment:
 
+      PROXY_WEB_PORT: ${OR_SSL_PORT:-80}
+      PROXY_SSL_PORT: ${OR_SSL_PORT:-443}
+      PROXY_MQTT_PORT: ${OR_MQTT_PORT:-8883}
+
       # It is important that all services have the same timezone and are time synchronized.
       # Bearer tokens are only valid for minutes, and authentication fails if Keycloak drifts.
       TZ: ${TZ:-Europe/Amsterdam}
@@ -98,10 +102,12 @@ services:
       PROXY_HOST_REDIRECT_10_TARGET:
 
     # Expose public services (web server, MQTT broker)
+    volumes:
+      - ${HAPROXY_CONFIG_VOLUME:-./proxy/haproxy-default.cfg}:/etc/haproxy/haproxy.cfg
     ports:
-      - "80:80" # HTTP for letsencrypt cert generation and in general it redirects to 443 for HTTPS
-      - "${OR_SSL_PORT:-443}:443" # HTTPS /auth directs to keycloak and other paths direct to manager
-      - "8883:8883" # MQTTS
+      - "${OR_WEB_PORT:-80}:${OR_WEB_PORT:-80}" # HTTP for letsencrypt cert generation and in general it redirects to 443 for HTTPS
+      - "${OR_SSL_PORT:-443}:${OR_SSL_PORT:-443}" # HTTPS /auth directs to keycloak and other paths direct to manager
+      - "${OR_MQTT_PORT:-8883}:${OR_MQTT_PORT:-8883}" # MQTTS
 
   # The OpenRemote Manager
   manager:
