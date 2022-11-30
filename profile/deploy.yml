@@ -101,9 +101,10 @@ services:
       PROXY_HOST_REDIRECT_10_NAME:
       PROXY_HOST_REDIRECT_10_TARGET:
 
-    # Expose public services (web server, MQTT broker)
     volumes:
       - ${HAPROXY_CONFIG_VOLUME:-./proxy/haproxy-default.cfg}:/etc/haproxy/haproxy.cfg
+
+    # Expose public services (web server, MQTT broker)
     ports:
       - "${OR_WEB_PORT:-80}:${OR_WEB_PORT:-80}" # HTTP for letsencrypt cert generation and in general it redirects to 443 for HTTPS
       - "${OR_SSL_PORT:-443}:${OR_SSL_PORT:-443}" # HTTPS /auth directs to keycloak and other paths direct to manager
