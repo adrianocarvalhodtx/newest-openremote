@@ -23,7 +23,7 @@
   "devDependencies": {
     "@mdi/font": "^6.5.95",
     "terser-webpack-plugin": "^5.2.5",
-    "typescript": ">=4.5.2",
+    "typescript": "4.6.3",
     "webpack": "^5.64.3",
     "webpack-cli": "^4.9.1"
   },
