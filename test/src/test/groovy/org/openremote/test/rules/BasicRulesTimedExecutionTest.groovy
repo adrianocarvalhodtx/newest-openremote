@@ -12,7 +12,7 @@ import spock.lang.Specification
 import spock.util.concurrent.PollingConditions
 
 import static java.util.concurrent.TimeUnit.SECONDS
-import static org.openremote.test.setup.ManagerTestSetup.DEMO_RULE_STATES_GLOBAL
+import static org.openremote.setup.integration.ManagerTestSetup.DEMO_RULE_STATES_GLOBAL
 
 @Ignore // TODO Implement timer/deferred actions in rules engine
 class BasicRulesTimedExecutionTest extends Specification implements ManagerContainerTrait {
@@ -30,8 +30,6 @@ class BasicRulesTimedExecutionTest extends Specification implements ManagerConta
         def conditions = new PollingConditions(timeout: 30, delay: 0.2)
 
         and: "the container is started"
-        def expirationMillis = TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = 500
         def container = startContainer(defaultConfig(), defaultServices())
         def rulesService = container.getService(RulesService.class)
         def rulesetStorageService = container.getService(RulesetStorageService.class)
@@ -65,15 +63,11 @@ class BasicRulesTimedExecutionTest extends Specification implements ManagerConta
             assert globalEngineFiredRules.containsAll(expectedFiredRules)
         }
 
-        cleanup: "the static rules time variable is reset"
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = expirationMillis
-    }
+            }
 
     def "Check firing of timer rules with pseudo clock"() {
 
         given: "the container environment is started"
-        def expirationMillis = TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = 500
         def conditions = new PollingConditions(timeout: 30, delay: 0.2)
         def container = startContainer(defaultConfig(), defaultServices())
         def rulesService = container.getService(RulesService.class)
@@ -119,7 +113,5 @@ class BasicRulesTimedExecutionTest extends Specification implements ManagerConta
             assert globalEngineFiredRules.containsAll(expectedFiredRules)
         }
 
-        cleanup: "the static rules time variable is reset"
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = expirationMillis
-    }
+            }
 }

@@ -3,11 +3,9 @@ package org.openremote.test.rules
 import org.openremote.manager.rules.RulesService
 import org.openremote.manager.rules.RulesetStorageService
 import org.openremote.manager.setup.SetupService
-import org.openremote.test.setup.KeycloakTestSetup
-import org.openremote.test.setup.ManagerTestSetup
-import org.openremote.model.attribute.MetaItem
+import org.openremote.setup.integration.KeycloakTestSetup
+import org.openremote.setup.integration.ManagerTestSetup
 import org.openremote.model.rules.*
-import org.openremote.model.value.MetaItemType
 import org.openremote.test.ManagerContainerTrait
 import spock.lang.Specification
 import spock.util.concurrent.PollingConditions
@@ -20,15 +18,12 @@ import static org.openremote.model.Constants.*
 import static org.openremote.model.rules.Ruleset.Lang.GROOVY
 import static org.openremote.model.rules.Ruleset.Lang.JAVASCRIPT
 import static org.openremote.model.rules.Ruleset.Lang.JSON
-import static org.openremote.model.rules.Ruleset.SHOW_ON_LIST
 
 class BasicRulesetResourceTest extends Specification implements ManagerContainerTrait {
 
     def "Access rules as superuser"() {
         given: "the server container is started"
         def container = startContainer(defaultConfig(), defaultServices())
-        def expirationMillis = TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = 500
         def rulesetStorageService = container.getService(RulesetStorageService.class)
         def rulesService = container.getService(RulesService.class)
         def keycloakTestSetup = container.getService(SetupService.class).getTaskOfType(KeycloakTestSetup.class)
@@ -89,7 +84,7 @@ class BasicRulesetResourceTest extends Specification implements ManagerContainer
         ruleDefinitions.length == 1
         ruleDefinitions[0].name == "Some apartment 2 demo rules"
         ruleDefinitions[0].lang == GROOVY
-        ruleDefinitions[0].meta.getValue(SHOW_ON_LIST).orElse(false)
+        (ruleDefinitions[0] as AssetRuleset).isShowOnList()
 
         /* ############################################## WRITE ####################################### */
 
@@ -369,15 +364,11 @@ class BasicRulesetResourceTest extends Specification implements ManagerContainer
             assert deployment.ruleset.version == assetRuleset.version
         }
 
-        cleanup: "the static rules time variable is reset"
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = expirationMillis
-    }
+            }
 
     def "Access rules as testuser1"() {
 
         given: "the server container is started"
-        def expirationMillis = TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = 500
         def container = startContainer(defaultConfig(), defaultServices())
         def rulesetStorageService = container.getService(RulesetStorageService.class)
         def rulesService = container.getService(RulesService.class)
@@ -648,16 +639,12 @@ class BasicRulesetResourceTest extends Specification implements ManagerContainer
         ex = thrown()
         ex.response.status == 403
 
-        cleanup: "the static rules time variable is reset"
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = expirationMillis
-    }
+            }
 
     def "Access rules as testuser2"() {
 
         given: "the server container is started"
         def container = startContainer(defaultConfig(), defaultServices())
-        def expirationMillis = TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = 500
         def rulesetStorageService = container.getService(RulesetStorageService.class)
         def rulesService = container.getService(RulesService.class)
         def keycloakTestSetup = container.getService(SetupService.class).getTaskOfType(KeycloakTestSetup.class)
@@ -796,16 +783,12 @@ class BasicRulesetResourceTest extends Specification implements ManagerContainer
         ex = thrown()
         ex.response.status == 403
 
-        cleanup: "the static rules time variable is reset"
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = expirationMillis
-    }
+            }
 
     def "Access rules as testuser3"() {
 
         given: "the server container is started"
         def container = startContainer(defaultConfig(), defaultServices())
-        def expirationMillis = TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = 500
         def rulesetStorageService = container.getService(RulesetStorageService.class)
         def rulesService = container.getService(RulesService.class)
         def keycloakTestSetup = container.getService(SetupService.class).getTaskOfType(KeycloakTestSetup.class)
@@ -927,7 +910,6 @@ class BasicRulesetResourceTest extends Specification implements ManagerContainer
             managerTestSetup.apartment1Id,
             "Test asset definition",
             JAVASCRIPT, "SomeRulesCode")
-        assetRuleset.getMeta().add(new MetaItem<>(MetaItemType.SHOW_ON_DASHBOARD, true))
         rulesetResource.createAssetRuleset(null, assetRuleset)
         def rulesetId = rulesetResource.getAssetRulesets(null, managerTestSetup.apartment1Id, null, false)[1].id
         assetRuleset = rulesetResource.getAssetRuleset(null, rulesetId)
@@ -941,7 +923,6 @@ class BasicRulesetResourceTest extends Specification implements ManagerContainer
         assetRuleset.name == "Test asset definition"
         assetRuleset.rules == "SomeRulesCode"
         assetRuleset.assetId == managerTestSetup.apartment1Id
-        assetRuleset.meta.getValue(MetaItemType.SHOW_ON_DASHBOARD).orElse(false)
 
         and: "the ruleset should reach the engine"
         conditions.eventually {
@@ -1033,7 +1014,5 @@ class BasicRulesetResourceTest extends Specification implements ManagerContainer
         ex = thrown()
         ex.response.status == 403
 
-        cleanup: "the static rules time variable is reset"
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = expirationMillis
-    }
+            }
 }

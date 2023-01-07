@@ -6,6 +6,7 @@ import {AppConfig, appReducer, HeaderConfig, HeaderItem, OrApp, PageProvider, Re
 import {
     headerItemAccount,
     headerItemAssets,
+    headerItemConfiguration,
     headerItemExport,
     headerItemGatewayConnection,
     headerItemInsights,
@@ -22,7 +23,7 @@ import {
 import "./pages/page-map";
 import {PageMapConfig, pageMapProvider, pageMapReducer} from "./pages/page-map";
 import "./pages/page-assets";
-import {PageAssetsConfig, pageAssetsProvider} from "./pages/page-assets";
+import {PageAssetsConfig, pageAssetsProvider, pageAssetsReducer} from "./pages/page-assets";
 import "./pages/page-gateway";
 import {pageGatewayProvider} from "./pages/page-gateway";
 import "./pages/page-insights";
@@ -40,13 +41,15 @@ import {pageRolesProvider} from "./pages/page-roles";
 import "./pages/page-realms";
 import {pageRealmsProvider} from "./pages/page-realms";
 import {pageExportProvider} from "./pages/page-export";
-import {ManagerConfig} from "@openremote/core";
+import { pageConfigurationProvider } from "./pages/page-configuration";
+import { ManagerAppConfig } from "@openremote/model";
 
 declare var CONFIG_URL_PREFIX: string;
 
 const rootReducer = combineReducers({
     app: appReducer,
-    map: pageMapReducer
+    map: pageMapReducer,
+    assets: pageAssetsReducer
 });
 
 type RootState = ReturnType<typeof rootReducer>;
@@ -54,30 +57,6 @@ type RootState = ReturnType<typeof rootReducer>;
 export const store = configureStore({
     reducer: rootReducer
 });
-
-type HeaderName = "map" | "assets" | "rules" | "insights" | "gateway" | "logs" | "account" | "users" | "roles" | "realms" | "logout" | "language" | "export";
-
-export interface ManagerRealmConfig {
-    appTitle?: string;
-    logo?: HTMLTemplateElement | string;
-    logoMobile?: HTMLTemplateElement | string;
-    favicon?: HTMLTemplateElement | string;
-    headers?: HeaderName[];
-    language?: string;
-    styles?: string;
-}
-
-export interface ManagerAppConfig {
-    pages?: {
-        [name in HeaderName]: any;
-    },
-    realms?: {
-        default?: ManagerRealmConfig;
-        [realm: string]: ManagerRealmConfig;
-    };
-    loadLocales?: boolean;
-    manager?: ManagerConfig;
-}
 
 const orApp = new OrApp(store);
 
@@ -93,7 +72,8 @@ export const DefaultPagesConfig: PageProvider<any>[] = [
     pageUsersProvider(store),
     pageRealmsProvider(store),
     pageExportProvider(store),
-    pageProvisioningProvider(store)
+    pageProvisioningProvider(store),
+    pageConfigurationProvider(store)
 ];
 
 export const DefaultHeaderMainMenu: {[name: string]: HeaderItem} = {
@@ -113,6 +93,7 @@ export const DefaultHeaderSecondaryMenu: {[name: string]: HeaderItem} = {
     realms: headerItemRealms(orApp),
     export: headerItemExport(orApp),
     provisioning: headerItemProvisioning(orApp),
+    configuration: headerItemConfiguration(orApp),
     logout: headerItemLogout(orApp)
 };
 
@@ -242,13 +223,22 @@ fetch(configURL).then(async (result) => {
                     });
                 }
 
-                if (normalisedConfig.language) {
-                    manager.language = normalisedConfig.language;
-                }
-
                 orAppConfig.realms[name] = { ...defaultRealm, header: headers, ...(realmConfig as RealmAppConfig) };
             });
         }
+
+        // Check local storage for set language, otherwise use language set in config
+        manager.console.retrieveData("LANGUAGE").then((value: string | undefined) => {
+            manager.language = (value ? value : orAppConfig.realms[manager.displayRealm].language);
+        }).catch(() => {
+            if (orAppConfig.realms[manager.displayRealm]){
+                manager.language = orAppConfig.realms[manager.displayRealm].language
+            } else if (orAppConfig.realms['default']){
+                manager.language = orAppConfig.realms['default'].language
+            } else {
+                manager.language = 'en'
+            }
+        })
 
         // Add config prefix if defined (used in dev)
         if (CONFIG_URL_PREFIX) {

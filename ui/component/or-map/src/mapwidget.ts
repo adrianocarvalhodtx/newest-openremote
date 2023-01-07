@@ -1,5 +1,5 @@
-import manager, {MapType} from "@openremote/core";
-import {LngLatLike, Map as MapGL, MapboxOptions as OptionsGL, Marker as MarkerGL, Style as StyleGL, LngLat,
+import manager from "@openremote/core";
+import maplibregl, {LngLatLike, Map as MapGL, MapboxOptions as OptionsGL, Marker as MarkerGL, Style as StyleGL, LngLat,
     MapMouseEvent,
     NavigationControl,
     GeolocateControl,
@@ -13,6 +13,7 @@ import {
     OrMapMarker
 } from "./markers/or-map-marker";
 import {getLatLngBounds, getLngLat} from "./util";
+import { MapType } from "@openremote/model";
 const mapboxJsStyles = require("mapbox.js/dist/mapbox.css");
 const maplibreGlStyles = require("maplibre-gl/dist/maplibre-gl.css");
 const maplibreGeoCoderStyles = require("@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css");
@@ -297,7 +298,7 @@ export class MapWidget {
             });
 
             if (this._showGeoCodingControl && this._viewSettings && this._viewSettings.geocodeUrl) {
-                this._geocoder = new MaplibreGeocoder({forwardGeocode: this._forwardGeocode.bind(this), reverseGeocode: this._reverseGeocode }, { marker: false, showResultsWhileTyping: true });
+                this._geocoder = new MaplibreGeocoder({forwardGeocode: this._forwardGeocode.bind(this), reverseGeocode: this._reverseGeocode }, { maplibregl: maplibregl, showResultsWhileTyping: true });
                 // Override the _onKeyDown function from MaplibreGeocoder which has a bug getting the value from the input element
                 this._geocoder._onKeyDown = debounce((e: KeyboardEvent) => {
                     var ESC_KEY_CODE = 27,

@@ -50,6 +50,7 @@ export class PageProvisioning extends Page<AppStateKeyed> {
                     margin: 20px auto;
                     align-items: center;
                     display: flex;
+                    color: var(--or-app-color3, ${unsafeCSS(DefaultColor3)});
                 }
 
                 #title or-icon {
@@ -77,6 +78,7 @@ export class PageProvisioning extends Page<AppStateKeyed> {
                     margin-top: 0;
                     flex: 0 0 auto;
                     letter-spacing: 0.025em;
+                    color: var(--or-app-color3, ${unsafeCSS(DefaultColor3)});
                 }
 
                 #table-users,
@@ -373,7 +375,7 @@ export class PageProvisioning extends Page<AppStateKeyed> {
                 <or-mwc-input .label="${i18next.t("ignoreExpiryDate")}"
                               .type="${InputType.CHECKBOX}"
                               .value="${data.ignoreExpiryDate}"
-                              @or-mwc-input-changed="${(e: OrInputChangedEvent) => config.disabled = !e.detail.value}"
+                              @or-mwc-input-changed="${(e: OrInputChangedEvent) => data.ignoreExpiryDate = !e.detail.value}"
                               style="height: 56px;"></or-mwc-input>
             `;
         } else {
@@ -432,7 +434,7 @@ export class PageProvisioning extends Page<AppStateKeyed> {
                                 <or-mwc-input .label="${i18next.t("createAsRestrictedUser")}"
                                               .type="${InputType.CHECKBOX}"
                                               .value="${config.restrictedUser}"
-                                              @or-mwc-input-changed="${(e: OrInputChangedEvent) => config.disabled = e.detail.value}"></or-mwc-input>
+                                              @or-mwc-input-changed="${(e: OrInputChangedEvent) => config.restrictedUser = e.detail.value}"></or-mwc-input>
                                 <or-mwc-input .label="${i18next.t("disabled")}"
                                               .type="${InputType.CHECKBOX}"
                                               .value="${config.disabled}"

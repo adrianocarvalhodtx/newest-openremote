@@ -28,8 +28,19 @@ dependencies {
         force = true
     }
 
-    api ("io.moquette:moquette-broker:$moquetteVersion") {
-        exclude module: "slf4j-log4j12" // Don't want log4J
+    // Exposed via MQTT API
+    api ("io.netty:netty-codec-mqtt:$nettyVersion") {
+        force = true
+    }
+
+    implementation("org.apache.activemq:artemis-mqtt-protocol:$activeMQVersion") {
+        exclude group: "org.osgi"
+        exclude group: "org.jboss.logging"
+    }
+
+    // Needed for reference in tests
+    api("org.apache.activemq:artemis-server:$activeMQVersion") {
+        exclude group: "org.osgi"
     }
 
     implementation("org.quartz-scheduler:quartz:$quartzVersion") {
@@ -79,7 +90,7 @@ publishing {
             from components.java
             pom {
                 name = 'OpenRemote Manager'
-                description = 'Provides core container services and is the main component of the OpenRemote backend; add maven {url "https://jitpack.io"} and maven {url "https://repo.osgeo.org/repository/release/"} and maven {url "https://pkgs.dev.azure.com/OpenRemote/OpenRemote/_packaging/OpenRemote/maven/v1"} to resolve all dependencies'
+                description = 'Provides core container services and is the main component of the OpenRemote backend; add maven {url "https://repo.osgeo.org/repository/release/"} and maven {url "https://pkgs.dev.azure.com/OpenRemote/OpenRemote/_packaging/OpenRemote/maven/v1"} to resolve all dependencies'
                 url = 'https://github.com/openremote/openremote'
                 licenses {
                     license {

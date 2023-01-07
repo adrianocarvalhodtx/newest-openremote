@@ -165,7 +165,7 @@ class GeofenceProvider(val context: Context) {
     private val locationUpdateCallback: LocationCallback by lazy {
         object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
-                locationResult.lastLocation.let {
+                locationResult.lastLocation?.let {
                     locationClient.removeLocationUpdates(this)
                     locationCallback?.accept(
                         hashMapOf(
@@ -334,8 +334,8 @@ class GeofenceProvider(val context: Context) {
 
         Thread {
 
-            val hasPermission = when (android.os.Build.VERSION.SDK_INT) {
-                android.os.Build.VERSION_CODES.Q -> {
+            val hasPermission = when  {
+                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q -> {
                     context.checkSelfPermission(
                         ACCESS_BACKGROUND_LOCATION
                     ) == PackageManager.PERMISSION_GRANTED

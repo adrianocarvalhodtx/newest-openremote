@@ -41,6 +41,7 @@ import org.openremote.model.asset.AssetTypeInfo;
 import org.openremote.model.asset.agent.Agent;
 import org.openremote.model.asset.agent.AgentDescriptor;
 import org.openremote.model.asset.agent.AgentLink;
+import org.openremote.model.asset.impl.UnknownAsset;
 import org.openremote.model.attribute.Attribute;
 import org.openremote.model.syslog.SyslogCategory;
 import org.openremote.model.value.*;
@@ -535,13 +536,16 @@ public class ValueUtil {
         return assetTypeMap.values().toArray(new Class[0]);
     }
 
-    public static Optional<AssetTypeInfo> getAssetInfo(Class<? extends Asset<?>> assetType) {
+    public static Optional<Class<? extends Asset<?>>> getAssetClass(String assetType) {
+        return Optional.ofNullable(assetTypeMap.get(assetType));
+    }
+
+    public static <T extends Asset<?>> Optional<AssetTypeInfo> getAssetInfo(Class<T> assetType) {
         return Optional.ofNullable(assetInfoMap.get(assetType));
     }
 
     public static Optional<AssetTypeInfo> getAssetInfo(String assetType) {
-        Class<? extends Asset<?>> assetClass = assetTypeMap.get(assetType);
-        return Optional.ofNullable(assetClass != null ? assetInfoMap.get(assetClass) : null);
+        return getAssetClass(assetType).map(assetClass -> assetInfoMap.get(assetClass));
     }
 
     // TODO: Implement ability to restrict which asset types are allowed to be added to a given parent type
@@ -571,7 +575,7 @@ public class ValueUtil {
         return metaItemDescriptors.toArray(new MetaItemDescriptor<?>[0]);
     }
 
-    public static Optional<MetaItemDescriptor<?>[]> getMetaItemDescriptors(Class<? extends Asset<?>> assetType) {
+    public static <T extends Asset<?>> Optional<MetaItemDescriptor<?>[]> getMetaItemDescriptors(Class<T> assetType) {
         return getAssetInfo(assetType).map(AssetTypeInfo::getMetaItemDescriptors);
     }
 
@@ -581,6 +585,7 @@ public class ValueUtil {
 
     public static Optional<MetaItemDescriptor<?>> getMetaItemDescriptor(String name) {
         if (TextUtil.isNullOrEmpty(name)) return Optional.empty();
+
         return metaItemDescriptors.stream().filter(mid -> mid.getName().equals(name)).findFirst();
     }
 
@@ -588,7 +593,7 @@ public class ValueUtil {
         return valueDescriptors.toArray(new ValueDescriptor<?>[0]);
     }
 
-    public static Optional<ValueDescriptor<?>[]> getValueDescriptors(Class<? extends Asset<?>> assetType) {
+    public static <T extends Asset<?>> Optional<ValueDescriptor<?>[]> getValueDescriptors(Class<T> assetType) {
         return getAssetInfo(assetType).map(AssetTypeInfo::getValueDescriptors);
     }
 
@@ -636,27 +641,7 @@ public class ValueUtil {
         else if (valueClass == BigInteger.class) valueDescriptor = ValueType.BIG_INTEGER;
         else if (valueClass == BigDecimal.class) valueDescriptor = ValueType.BIG_NUMBER;
         else if (valueClass == Byte.class) valueDescriptor = ValueType.BYTE;
-        else if (Map.class.isAssignableFrom(valueClass)) {
-            Object firstElem = findFirstNonNullEntry((Map<?,?>)value);
-
-            if (firstElem == null) valueDescriptor = ValueType.JSON_OBJECT;
-            else {
-                boolean elemIsArray = firstElem.getClass().isArray();
-                Class<?> elemClass = elemIsArray ? firstElem.getClass() : firstElem.getClass().getComponentType();
-                if (elemIsArray) {
-                    valueDescriptor = elemClass == String.class ? ValueType.MULTIVALUED_TEXT_MAP : ValueType.JSON_OBJECT;
-                } else {
-                    if (elemClass == String.class)
-                        valueDescriptor = ValueType.TEXT_MAP;
-                    else if (elemClass == Double.class || elemClass == Float.class)
-                        valueDescriptor = ValueType.NUMBER_MAP;
-                    else if (elemClass == Integer.class)
-                        valueDescriptor = ValueType.TEXT_MAP;
-                    else if (elemClass == Boolean.class)
-                        valueDescriptor = ValueType.BOOLEAN_MAP;
-                }
-            }
-        }
+        else if (Map.class.isAssignableFrom(valueClass)) valueDescriptor = ValueType.JSON_OBJECT;
 
         return isArray ? valueDescriptor.asArray() : valueDescriptor;
     }
@@ -784,16 +769,18 @@ public class ValueUtil {
             if (!Modifier.isAbstract(assetClass.getModifiers())) {
 
                 AssetTypeInfo assetInfo = buildAssetInfo(assetClass, copy);
-                assetInfoMap.put(assetClass, assetInfo);
-                assetTypeMap.put(assetInfo.getAssetDescriptor().getName(), assetClass);
 
-                if (assetInfo.getAssetDescriptor() instanceof AgentDescriptor) {
-                    AgentDescriptor<?,?,?> agentDescriptor = (AgentDescriptor<?,?,?>)assetInfo.getAssetDescriptor();
-                    String agentLinkName = agentDescriptor.getAgentLinkClass().getSimpleName();
-                    if (agentLinkMap.containsKey(agentLinkName) && agentLinkMap.get(agentLinkName) != agentDescriptor.getAgentLinkClass()) {
-                        throw new IllegalStateException("AgentLink simple class name must be unique, duplicate found for: " + agentDescriptor.getAgentLinkClass());
+                if (assetInfo != null) {
+                    assetInfoMap.put(assetClass, assetInfo);
+                    assetTypeMap.put(assetInfo.getAssetDescriptor().getName(), assetClass);
+
+                    if (assetInfo.getAssetDescriptor() instanceof AgentDescriptor<?, ?, ?> agentDescriptor) {
+                        String agentLinkName = agentDescriptor.getAgentLinkClass().getSimpleName();
+                        if (agentLinkMap.containsKey(agentLinkName) && agentLinkMap.get(agentLinkName) != agentDescriptor.getAgentLinkClass()) {
+                            throw new IllegalStateException("AgentLink simple class name must be unique, duplicate found for: " + agentDescriptor.getAgentLinkClass());
+                        }
+                        agentLinkMap.put(agentLinkName, agentDescriptor.getAgentLinkClass());
                     }
-                    agentLinkMap.put(agentLinkName, agentDescriptor.getAgentLinkClass());
                 }
             }
         });
@@ -1007,6 +994,10 @@ public class ValueUtil {
     }
 
     protected static AssetTypeInfo buildAssetInfo(Class<? extends Asset<?>> assetClass, Map<Class<? extends Asset<?>>, List<NameHolder>> classDescriptorMap) throws IllegalStateException {
+
+        if (assetClass == UnknownAsset.class) {
+            return null;
+        }
 
         Class<?> currentClass = assetClass;
         List<Class<?>> classTree = new ArrayList<>();

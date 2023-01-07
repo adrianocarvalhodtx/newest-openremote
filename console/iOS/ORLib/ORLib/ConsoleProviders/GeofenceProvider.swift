@@ -14,7 +14,6 @@ public class GeofenceProvider: NSObject, URLSessionDelegate {
     let userdefaults = UserDefaults(suiteName: DefaultsKey.groupEntitlement)
     var geoPostUrls = [String:[String]]()
     var enableCallback : (([String: Any]) -> (Void))?
-    var getLocationCallback : (([String: Any]) -> (Void))?
 
     public var baseURL: String = ""
     public var consoleId: String = ""
@@ -49,7 +48,7 @@ public class GeofenceProvider: NSObject, URLSessionDelegate {
 
     private func checkPermission() -> Bool {
         if CLLocationManager.locationServicesEnabled() {
-            if CLLocationManager.authorizationStatus() == .authorizedAlways {
+            if locationManager.authorizationStatus == .authorizedAlways {
                 return true
             }
         }
@@ -105,7 +104,7 @@ public class GeofenceProvider: NSObject, URLSessionDelegate {
                 DefaultsKey.successKey: true
                 ])
         } else {
-            if CLLocationManager.authorizationStatus() == .notDetermined {
+            if locationManager.authorizationStatus == .notDetermined {
                 registerPermissions()
             } else {
                 enableCallback?([
@@ -128,19 +127,6 @@ public class GeofenceProvider: NSObject, URLSessionDelegate {
             DefaultsKey.actionKey: Actions.providerDisable,
             DefaultsKey.providerKey: Providers.geofence
         ]
-    }
-
-    public func getLocation(callback:@escaping ([String: Any]) -> (Void)) {
-        if CLLocationManager.authorizationStatus() == .denied {
-            callback([
-                DefaultsKey.actionKey: Actions.getLocation,
-                DefaultsKey.providerKey: Providers.geofence,
-                DefaultsKey.dataKey: nil
-            ])
-        } else {
-            getLocationCallback = callback
-            locationManager.startUpdatingLocation()
-        }
     }
 
     public func refreshGeofences() {
@@ -323,17 +309,6 @@ extension GeofenceProvider: CLLocationManagerDelegate {
                 ])
         } else if status == .authorizedAlways {
             self.locationManager.startMonitoringSignificantLocationChanges()
-        }
-    }
-
-    public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        if let lastLocation = locations.last {
-            getLocationCallback?([
-                DefaultsKey.actionKey: Actions.getLocation,
-                DefaultsKey.providerKey: Providers.geofence,
-                DefaultsKey.dataKey: ["latitude": lastLocation.coordinate.latitude, "longitude": lastLocation.coordinate.longitude]
-                ])
-            locationManager.stopUpdatingLocation()
         }
     }
 

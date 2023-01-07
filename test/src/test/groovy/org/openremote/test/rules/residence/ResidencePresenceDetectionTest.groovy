@@ -7,7 +7,7 @@ import org.openremote.manager.rules.RulesEngine
 import org.openremote.manager.rules.RulesService
 import org.openremote.manager.rules.RulesetStorageService
 import org.openremote.manager.setup.SetupService
-import org.openremote.test.setup.ManagerTestSetup
+import org.openremote.setup.integration.ManagerTestSetup
 import org.openremote.model.attribute.AttributeEvent
 import org.openremote.model.rules.AssetRuleset
 import org.openremote.model.rules.Ruleset
@@ -18,7 +18,7 @@ import spock.lang.Specification
 import spock.util.concurrent.PollingConditions
 
 import static java.util.concurrent.TimeUnit.MINUTES
-import static org.openremote.test.setup.ManagerTestSetup.DEMO_RULE_STATES_APARTMENT_1
+import static org.openremote.setup.integration.ManagerTestSetup.DEMO_RULE_STATES_APARTMENT_1
 import static org.openremote.model.attribute.AttributeEvent.Source.SENSOR
 
 // Ignore this test as temporary facts (rule events) cause the rule engine to continually fire, need to decide if
@@ -29,8 +29,6 @@ class ResidencePresenceDetectionTest extends Specification implements ManagerCon
     def "Presence detection with motion sensor"() {
 
         given: "the container environment is started"
-        def expirationMillis = TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = 500
         def conditions = new PollingConditions(timeout: 30, delay: 0.2)
         def container = startContainer(defaultConfig(), defaultServices())
         def managerTestSetup = container.getService(SetupService.class).getTaskOfType(ManagerTestSetup.class)
@@ -180,15 +178,11 @@ class ResidencePresenceDetectionTest extends Specification implements ManagerCon
             assert hallway.getAttribute("lastPresenceDetected").flatMap{it.value}.orElse(0d) == expectedLastPresenceDetected
         }
 
-        cleanup: "the static rules time variable is reset"
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = expirationMillis
-    }
+            }
 
     def "Presence detection with motion sensor and confirmation with CO2 level"() {
 
         given: "the container environment is started"
-        def expirationMillis = TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = 500
         def conditions = new PollingConditions(timeout: 20, delay: 0.2)
         def container = startContainer(defaultConfig(), defaultServices())
         def managerTestSetup = container.getService(SetupService.class).getTaskOfType(ManagerTestSetup.class)
@@ -329,9 +323,7 @@ class ResidencePresenceDetectionTest extends Specification implements ManagerCon
             assert roomAsset.getAttribute("lastPresenceDetected").flatMap{it.value}.orElse(0d) == expectedLastPresenceDetected
         }
 
-        cleanup: "the static rules time variable is reset"
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = expirationMillis
-    }
+            }
 
         /* TODO Migrate to JS, didn't compile even with Drools
         def "Presence prediction rules compilation"() {

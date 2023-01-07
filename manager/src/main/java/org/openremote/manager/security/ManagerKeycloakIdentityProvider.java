@@ -33,6 +33,7 @@ import org.openremote.container.persistence.PersistenceService;
 import org.openremote.container.security.AuthContext;
 import org.openremote.container.security.keycloak.KeycloakIdentityProvider;
 import org.openremote.container.timer.TimerService;
+import org.openremote.container.util.UniqueIdentifierGenerator;
 import org.openremote.container.web.WebService;
 import org.openremote.manager.apps.ConsoleAppService;
 import org.openremote.manager.asset.AssetStorageService;
@@ -42,6 +43,7 @@ import org.openremote.model.Container;
 import org.openremote.model.PersistenceEvent;
 import org.openremote.model.asset.Asset;
 import org.openremote.model.auth.OAuthGrant;
+import org.openremote.model.auth.OAuthPasswordGrant;
 import org.openremote.model.event.shared.RealmFilter;
 import org.openremote.model.gateway.GatewayConnection;
 import org.openremote.model.provisioning.ProvisioningConfig;
@@ -56,10 +58,7 @@ import org.openremote.model.util.ValueUtil;
 
 import javax.persistence.Query;
 import javax.validation.constraints.NotNull;
-import javax.ws.rs.BadRequestException;
-import javax.ws.rs.NotAllowedException;
-import javax.ws.rs.NotFoundException;
-import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.*;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriBuilder;
 import java.io.InputStream;
@@ -114,15 +113,9 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
     public void init(Container container) {
         super.init(container);
         this.container = container;
-        OAuthGrant grant = loadCredentials();
 
-        // Update the keycloak proxy credentials to use stored credentials
-        if (grant != null) {
-            setActiveCredentials(grant);
-        }
-
-        String hostname = getString(container.getConfig(), Constants.OR_HOSTNAME, "localhost");
-        int port = getInteger(container.getConfig(), Constants.OR_SSL_PORT, 8080); // Should just be called port
+        String hostname = getString(container.getConfig(), Constants.OR_HOSTNAME, null);
+        int port = getInteger(container.getConfig(), Constants.OR_SSL_PORT, -1); // Should just be called port
         String keycloakHostname = getString(container.getConfig(), KC_HOSTNAME, hostname);
         int keycloakPort = getInteger(container.getConfig(), KC_HOSTNAME_PORT, port);
         String keycloakHostnamePath = getString(container.getConfig(), KC_HOSTNAME_PATH, "auth");
@@ -159,6 +152,66 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
         if (container.isDevMode()) {
             enableAuthProxy(container.getService(WebService.class));
         }
+    }
+
+    @Override
+    protected OAuthGrant getStoredCredentials(Container container) {
+        // Try and load keycloak proxy credentials from the file system
+        String grantFile = getString(container.getConfig(), OR_KEYCLOAK_GRANT_FILE, OR_KEYCLOAK_GRANT_FILE_DEFAULT);
+        Path grantPath = TextUtil.isNullOrEmpty(grantFile) ? null : Paths.get(grantFile);
+        OAuthGrant grant = null;
+
+        if (grantPath != null && Files.isReadable(grantPath)) {
+            LOG.info("Loading OR_KEYCLOAK_GRANT_FILE: " + grantFile);
+
+            try (InputStream is = Files.newInputStream(grantPath)) {
+                String grantJson = IOUtils.toString(is, StandardCharsets.UTF_8);
+                grant = ValueUtil.parse(grantJson, OAuthGrant.class).orElseGet(() -> {
+                    LOG.warning("Failed to load OR_KEYCLOAK_GRANT_FILE: " + grantFile);
+                    return null;
+                });
+            } catch (Exception ex) {
+                throw new ExceptionInInitializerError(ex);
+            }
+        }
+        return grant;
+    }
+
+    @Override
+    protected OAuthGrant generateStoredCredentials(Container container) {
+        String grantFile = getString(container.getConfig(), OR_KEYCLOAK_GRANT_FILE, OR_KEYCLOAK_GRANT_FILE_DEFAULT);
+
+        if (TextUtil.isNullOrEmpty(grantFile)) {
+            return null;
+        }
+
+        // Create a new super user for the keycloak proxy so admin user can be modified if desired
+        User keycloakProxyUser = new User()
+            .setUsername(MANAGER_CLIENT_ID)
+            .setEnabled(true)
+            .setSystemAccount(true);
+        String password = UniqueIdentifierGenerator.generateId();
+        keycloakProxyUser = createUpdateUser(MASTER_REALM, keycloakProxyUser, password, true);
+
+        // Make this proxy user a super user by giving them admin realm role
+        updateUserRealmRoles(MASTER_REALM, keycloakProxyUser.getId(), addRealmRoles(MASTER_REALM, keycloakProxyUser.getId(), REALM_ADMIN_ROLE));
+
+        // Use same details as default keycloak grant but change the username and password to our new user
+        OAuthPasswordGrant grant = getDefaultKeycloakGrant(container);
+        grant.setUsername(keycloakProxyUser.getUsername()).setPassword(password);
+        Path grantPath = Paths.get(grantFile);
+
+        try {
+            Files.write(grantPath, ValueUtil.asJSON(grant).orElse("null").getBytes(),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (Exception e) {
+            LOG.info("Failed to write " + OR_KEYCLOAK_GRANT_FILE + ": " + grantFile);
+            return null;
+        }
+
+        return grant;
     }
 
     @Override
@@ -211,8 +264,8 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
     }
 
     @Override
-    public User getUser(String realm, String userId) {
-        return ManagerIdentityProvider.getUserByIdFromDb(persistenceService, realm, userId);
+    public User getUser(String userId) {
+        return ManagerIdentityProvider.getUserByIdFromDb(persistenceService, userId);
     }
 
     @Override
@@ -221,7 +274,7 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
     }
 
     @Override
-    public User createUpdateUser(String realm, final User user, String passwordSecret) throws WebApplicationException {
+    public User createUpdateUser(String realm, final User user, String passwordSecret, boolean allowUpdate) throws WebApplicationException {
         return getRealms(realmsResource -> {
 
             if (user.getUsername() == null) {
@@ -232,9 +285,15 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
             user.setUsername(user.getUsername().toLowerCase(Locale.ROOT));
 
             boolean isUpdate = false;
-            User existingUser = user.getId() != null ? getUser(realm, user.getId()) : getUserByUsername(realm, user.getUsername());
+            User existingUser = user.getId() != null ? getUser(user.getId()) : getUserByUsername(realm, user.getUsername());
             ClientRepresentation clientRepresentation;
             UserRepresentation userRepresentation;
+
+            if(existingUser != null && !allowUpdate) {
+                String msg = "Attempt to create user but it already exists: User=" + user;
+                LOG.fine(msg);
+                throw new ForbiddenException(msg);
+            }
 
             if (existingUser == null && user.isServiceAccount()) {
                 // Could be a service user
@@ -242,7 +301,7 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
                     UserRepresentation userRep = clientResource.getServiceAccountUser();
                     if (userRep == null) {
                         String msg = "Attempt to update/create service user but a regular client with same client ID as this username already exists: User=" + user;
-                        LOG.info(msg);
+                        LOG.fine(msg);
                         throw new NotAllowedException(msg);
                     }
                     return userRep;
@@ -255,7 +314,7 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
 
             if (existingUser != null && user.getId() != null && !existingUser.getId().equals(user.getId())) {
                 String msg = "Attempt to update user but retrieved user ID doesn't match supplied so ignoring: User=" + user;
-                LOG.info(msg);
+                LOG.fine(msg);
                 throw new BadRequestException(msg);
             }
 
@@ -264,13 +323,13 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
 
                 if (existingUser.isServiceAccount() != user.isServiceAccount()) {
                     String msg = "Attempt to update user service account flag not allowed: User=" + user;
-                    LOG.info(msg);
+                    LOG.fine(msg);
                     throw new NotAllowedException(msg);
                 }
 
                 if (existingUser.isServiceAccount() && !existingUser.getUsername().equals(user.getUsername())) {
                     String msg = "Attempt to update username of service user not allowed: User=" + user;
-                    LOG.info(msg);
+                    LOG.fine(msg);
                     throw new NotAllowedException(msg);
                 }
             }
@@ -357,7 +416,10 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
                 (isUpdate ? PersistenceEvent.Cause.UPDATE : PersistenceEvent.Cause.CREATE),
                 updatedUser,
                 existingUser,
-                User.getPropertyFields());
+                User.class,
+                Collections.singletonList("attributes"),
+                null);
+
             return updatedUser;
         });
     }
@@ -365,10 +427,14 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
     @Override
     public void deleteUser(String realm, String userId) {
 
-        User user = getUser(realm, userId);
+        User user = getUser(userId);
 
         if (user == null) {
             return;
+        }
+
+        if (user.getUsername().equals(MASTER_REALM_ADMIN_USER) && user.getRealm().equals(MASTER_REALM)) {
+            throw new IllegalStateException("Cannot delete master realm admin user");
         }
 
         getRealms(realmsResource -> {
@@ -386,7 +452,12 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
             return null;
         });
 
-        persistenceService.publishPersistenceEvent(PersistenceEvent.Cause.DELETE, null, user, User.getPropertyFields());
+        persistenceService.publishPersistenceEvent(PersistenceEvent.Cause.DELETE,
+            null,
+            user,
+            User.class,
+            Collections.singletonList("attributes"),
+            null);
     }
 
     @Override
@@ -847,7 +918,7 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
             Realm updatedRealm = convert(realmRepresentation, Realm.class);
             updatedRealm.setName(realmRepresentation.getRealm());
             updatedRealm.setRealmRoles((realm.getRealmRoles() == null) ? existingRealmRoles : realm.getNormalisedRealmRoles());
-            persistenceService.publishPersistenceEvent(PersistenceEvent.Cause.UPDATE, updatedRealm, existingRealm, Realm.getPropertyFields());
+            persistenceService.publishPersistenceEvent(PersistenceEvent.Cause.UPDATE, updatedRealm, existingRealm, Realm.class, null, null);
             return null;
         });
     }
@@ -889,7 +960,7 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
                 Realm createdRealm = convert(realmRepresentation, Realm.class);
                 createdRealm.setName(realmRepresentation.getRealm());
                 createdRealm.setRealmRoles(realm.getRealmRoles());
-                persistenceService.publishPersistenceEvent(PersistenceEvent.Cause.CREATE, realm, null, Realm.getPropertyFields());
+                persistenceService.publishPersistenceEvent(PersistenceEvent.Cause.CREATE, realm, null, Realm.class, null, null);
                 return createdRealm;
             } catch (Exception e) {
                 LOG.log(Level.INFO, "Failed to create realm: " + realm, e);
@@ -940,54 +1011,8 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
                 realmsResource.realm(realmName).remove();
                 return null;
             });
-            persistenceService.publishPersistenceEvent(PersistenceEvent.Cause.DELETE, null, realm, Realm.getPropertyFields());
+            persistenceService.publishPersistenceEvent(PersistenceEvent.Cause.DELETE, null, realm, Realm.class, null, null);
         });
-    }
-
-    /**
-     * Load keycloak proxy credentials from file system
-     */
-    public OAuthGrant loadCredentials() {
-        // Try and load keycloak proxy credentials from file
-        String grantFile = getString(container.getConfig(), OR_KEYCLOAK_GRANT_FILE, OR_KEYCLOAK_GRANT_FILE_DEFAULT);
-        Path grantPath = TextUtil.isNullOrEmpty(grantFile) ? null : Paths.get(grantFile);
-        OAuthGrant grant = null;
-
-        if (grantPath != null && Files.isReadable(grantPath)) {
-            LOG.info("Loading OR_KEYCLOAK_GRANT_FILE: " + grantFile);
-
-            try (InputStream is = Files.newInputStream(grantPath)) {
-                String grantJson = IOUtils.toString(is, StandardCharsets.UTF_8);
-                grant = ValueUtil.parse(grantJson, OAuthGrant.class).orElseGet(() -> {
-                    LOG.info("Failed to load OR_KEYCLOAK_GRANT_FILE: " + grantFile);
-                    return null;
-                });
-            } catch (Exception ex) {
-                throw new ExceptionInInitializerError(ex);
-            }
-        }
-        return grant;
-    }
-
-    /**
-     * Save Keycloak proxy credentials to the file system
-     */
-    public void saveCredentials(OAuthGrant grant) {
-        String grantFile = getString(container.getConfig(), OR_KEYCLOAK_GRANT_FILE, OR_KEYCLOAK_GRANT_FILE_DEFAULT);
-
-        if (TextUtil.isNullOrEmpty(grantFile)) {
-            return;
-        }
-        Path grantPath = Paths.get(grantFile);
-
-        try {
-            Files.write(grantPath, ValueUtil.asJSON(grant).orElse("null").getBytes(),
-                StandardOpenOption.CREATE,
-                StandardOpenOption.WRITE,
-                StandardOpenOption.TRUNCATE_EXISTING);
-        } catch (Exception e) {
-            LOG.info("Failed to write OR_KEYCLOAK_GRANT_FILE: " + grantFile);
-        }
     }
 
     public ClientRepresentation generateOpenRemoteClientRepresentation() {
@@ -1041,7 +1066,7 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
             Response response = clientsResource.create(client);
             response.close();
             if (response.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
-                LOG.info("Failed to create client response=" + response.getStatusInfo().getStatusCode() + ": " + client);
+                LOG.fine("Failed to create client response=" + response.getStatusInfo().getStatusCode() + ": " + client);
                 return null;
             }
 
@@ -1063,11 +1088,11 @@ public class ManagerKeycloakIdentityProvider extends KeycloakIdentityProvider im
             RealmResource realmResource = realmsResource.realm(realm);
 
             if (realmResource == null) {
-                LOG.info("Invalid realm provided for deleteClient call: " + realm);
+                LOG.fine("Invalid realm provided for deleteClient call: " + realm);
                 return null;
             }
 
-            LOG.info("Deleting client: realm=" + realm + ", client ID=" + clientId);
+            LOG.fine("Deleting client: realm=" + realm + ", client ID=" + clientId);
             return withClientResource(realm, clientId, realmsResource, (clientRepresentation, clientResource) -> {
                 clientResource.remove();
                 return null;

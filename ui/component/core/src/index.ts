@@ -6,9 +6,17 @@ import {EventProvider, EventProviderFactory, EventProviderStatus, WebSocketEvent
 import i18next, {InitOptions} from "i18next";
 import i18nextBackend from "i18next-http-backend";
 import moment from "moment";
-import {AssetModelUtil, ConsoleAppConfig, Role, User} from "@openremote/model";
+import {
+    AssetModelUtil,
+    ConsoleAppConfig,
+    MapType,
+    Role,
+    User,
+    UsernamePassword,
+} from "@openremote/model";
 import * as Util from "./util";
 import {IconSets, createSvgIconSet, createMdiIconSet, OrIconSet} from "@openremote/or-icon";
+import { Auth, EventProviderType, ManagerConfig } from "@openremote/model/lib";
 
 // Re-exports
 export {Util};
@@ -49,12 +57,6 @@ export enum ORError {
     TRANSLATION_ERROR = "TRANSLATION_ERROR"
 }
 
-export enum Auth {
-    KEYCLOAK = "KEYCLOAK",
-    BASIC = "BASIC",
-    NONE = "NONE"
-}
-
 export enum OREvent {
     ERROR = "ERROR",
     READY = "READY",
@@ -68,19 +70,9 @@ export enum OREvent {
     DISPLAY_REALM_CHANGED = "DISPLAY_REALM_CHANGED"
 }
 
-export enum EventProviderType {
-    WEBSOCKET = "WEBSOCKET",
-    POLLING = "POLLING"
-}
-
-export interface Credentials {
-    username: string;
-    password: string;
-}
-
 export interface LoginOptions {
     redirectUrl?: string;
-    credentials?: Credentials;
+    credentials?: UsernamePassword;
 }
 
 export interface BasicLoginResult {
@@ -89,32 +81,20 @@ export interface BasicLoginResult {
     cancel: boolean;
 }
 
-export enum MapType {
-    VECTOR = "VECTOR",
-    RASTER = "RASTER"
+export interface Languages {
+    [langKey: string]: string;
 }
 
-export interface ManagerConfig {
-    managerUrl?: string;
-    keycloakUrl?: string;
-    appVersion?: string;
-    auth?: Auth;
-    realm?: string;
-    clientId?: string;
-    autoLogin?: boolean;
-    credentials?: Credentials;
-    consoleAutoEnable?: boolean;
-    eventProviderType?: EventProviderType;
-    pollingIntervalMillis?: number;
-    loadIcons?: boolean;
-    loadDescriptors?: boolean;
-    mapType?: MapType;
-    loadTranslations?: string[];
-    translationsLoadPath?: string;
-    configureTranslationsOptions?: (i18next: InitOptions) => void;
-    skipFallbackToBasicAuth?: boolean;
-    basicLoginProvider?: (username: string | undefined, password: string | undefined) => PromiseLike<BasicLoginResult>;
-}
+export const DEFAULT_LANGUAGES: Languages = {
+    en: "english",
+    cn: "chinese",
+    nl: "dutch",
+    fr: "french",
+    de: "german",
+    it: "italian",
+    pt: "portuguese",
+    es: "spanish"
+};
 
 export function normaliseConfig(config: ManagerConfig): ManagerConfig {
     const normalisedConfig: ManagerConfig = config ? Object.assign({}, config) : {};
@@ -132,15 +112,8 @@ export function normaliseConfig(config: ManagerConfig): ManagerConfig {
         normalisedConfig.realm = "master";
     }
 
-    if (normalisedConfig.auth === Auth.KEYCLOAK) {
-        // Determine URL of keycloak server
-        if (!normalisedConfig.keycloakUrl || normalisedConfig.keycloakUrl === "") {
-            // Assume keycloak is running on same host as the manager
-            normalisedConfig.keycloakUrl = normalisedConfig.managerUrl + "/auth";
-        }
-
-        // Normalise by stripping any trailing slashes
-        normalisedConfig.keycloakUrl = normalisedConfig.keycloakUrl.replace(/\/+$/, "");
+    if (!normalisedConfig.auth) {
+        normalisedConfig.auth = Auth.KEYCLOAK;
     }
 
     if (normalisedConfig.consoleAutoEnable === undefined) {
@@ -356,11 +329,46 @@ export class Manager implements EventProviderFactory {
             // BASIC auth will likely require UI so lets init translation at least
             success = await this.doTranslateInit() && success;
             success = await this.doAuthInit();
-        } else {
+        } else if (this._config.auth === Auth.KEYCLOAK) {
 
-            if (this._authServerUrl) {
-                this.config.keycloakUrl = this._authServerUrl;
+            // The info endpoint of the manager might return a relative URL (relative to the manager)
+            if (!this._config.keycloakUrl && this._authServerUrl) {
+                const managerURL = new URL(this._config.managerUrl!);
+                let authServerURL: URL;
+
+                if (this._authServerUrl.startsWith("//")) {
+                    this._authServerUrl = managerURL.protocol + this._authServerUrl;
+                }
+
+                try {
+                    authServerURL = new URL(this._authServerUrl);
+                } catch (e) {
+                    // Could be a relative URL
+                    authServerURL = new URL(managerURL);
+                    authServerURL.pathname = this._authServerUrl;
+                }
+
+                // Use manager URL info
+                if (!authServerURL.protocol) {
+                    authServerURL.protocol = managerURL.protocol;
+                }
+                if (!authServerURL.hostname) {
+                    authServerURL.hostname = managerURL.hostname;
+                }
+                if (!authServerURL.port) {
+                    authServerURL.port = managerURL.port;
+                }
+
+                this._config.keycloakUrl = authServerURL.toString();
             }
+
+            // If we still don't know auth server URL then use manager URL
+            if (!this._config.keycloakUrl) {
+                this._config.keycloakUrl = this._config.managerUrl + "/auth";
+            }
+
+            // Normalise by stripping any trailing slashes
+            this._config.keycloakUrl = this._config.keycloakUrl.replace(/\/+$/, "");
 
             success = await this.doAuthInit();
 
@@ -696,8 +704,8 @@ export class Manager implements EventProviderFactory {
         }
 
         let result: BasicLoginResult = {
-            username: this._config.credentials ? this._config.credentials.username : "",
-            password: this._config.credentials ? this._config.credentials.password : "",
+            username: this._config.credentials?.username ? this._config.credentials?.username : "",
+            password: this._config.credentials?.password ? this._config.credentials?.password : "",
             cancel: false
         };
         let authenticated = false;

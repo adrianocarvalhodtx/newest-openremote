@@ -6,7 +6,7 @@ import org.openremote.manager.rules.RulesEngine
 import org.openremote.manager.rules.RulesService
 import org.openremote.manager.rules.RulesetStorageService
 import org.openremote.manager.setup.SetupService
-import org.openremote.test.setup.ManagerTestSetup
+import org.openremote.setup.integration.ManagerTestSetup
 import org.openremote.model.attribute.AttributeEvent
 import org.openremote.model.rules.AssetRuleset
 import org.openremote.model.rules.Ruleset
@@ -17,7 +17,7 @@ import spock.lang.Specification
 import spock.util.concurrent.PollingConditions
 
 import static java.util.concurrent.TimeUnit.SECONDS
-import static org.openremote.test.setup.ManagerTestSetup.DEMO_RULE_STATES_APARTMENT_2
+import static org.openremote.setup.integration.ManagerTestSetup.DEMO_RULE_STATES_APARTMENT_2
 
 @Ignore
 class ResidenceAllLightsOffTest extends Specification implements ManagerContainerTrait {
@@ -25,8 +25,6 @@ class ResidenceAllLightsOffTest extends Specification implements ManagerContaine
     def "Turn all lights off"() {
 
         given: "the container environment is started"
-        def expirationMillis = TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = 500
         def conditions = new PollingConditions(timeout: 10, delay: 0.2)
         def container = startContainer(defaultConfig(), defaultServices())
         def managerTestSetup = container.getService(SetupService.class).getTaskOfType(ManagerTestSetup.class)
@@ -96,7 +94,5 @@ class ResidenceAllLightsOffTest extends Specification implements ManagerContaine
             assert livingroomAsset.getAttribute("lightSwitch").get().value.get()
         }
 
-        cleanup: "the static rules time variable is reset"
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = expirationMillis
-    }
+            }
 }

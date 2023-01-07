@@ -7,7 +7,7 @@ import org.openremote.manager.rules.RulesEngine
 import org.openremote.manager.rules.RulesService
 import org.openremote.manager.rules.RulesetStorageService
 import org.openremote.manager.setup.SetupService
-import org.openremote.test.setup.ManagerTestSetup
+import org.openremote.setup.integration.ManagerTestSetup
 import org.openremote.model.attribute.AttributeEvent
 import org.openremote.model.rules.AssetRuleset
 import org.openremote.model.rules.Ruleset
@@ -18,7 +18,7 @@ import spock.lang.Specification
 import spock.util.concurrent.PollingConditions
 
 import static java.util.concurrent.TimeUnit.MINUTES
-import static org.openremote.test.setup.ManagerTestSetup.DEMO_RULE_STATES_APARTMENT_1
+import static org.openremote.setup.integration.ManagerTestSetup.DEMO_RULE_STATES_APARTMENT_1
 import static org.openremote.model.attribute.AttributeEvent.Source.SENSOR
 
 // Ignore this test as temporary facts (rule events) cause the rule engine to continually fire, need to decide if
@@ -30,8 +30,6 @@ class ResidenceAutoVentilationTest extends Specification implements ManagerConta
     def "Auto ventilation with CO2 detection"() {
 
         given: "the container environment is started"
-        def expirationMillis = TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = 500
         def conditions = new PollingConditions(timeout: 20, delay: 0.2)
         def container = startContainer(defaultConfig(), defaultServices())
         def managerTestSetup = container.getService(SetupService.class).getTaskOfType(ManagerTestSetup.class)
@@ -225,7 +223,5 @@ class ResidenceAutoVentilationTest extends Specification implements ManagerConta
             assert apartment.getAttribute("ventilationLevel").flatMap{it.value}.orElse(0d) == 64d
         }
 
-        cleanup: "the static rules time variable is reset"
-        TemporaryFact.GUARANTEED_MIN_EXPIRATION_MILLIS = expirationMillis
-    }
+            }
 }

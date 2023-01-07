@@ -172,6 +172,8 @@ export const style = css`
         align-items: center;
         justify-content: space-between;
         z-index: 1;
+        transition: box-shadow 0.2s;
+        box-shadow: none;
     }
 
     #asset-header.editmode {
@@ -190,6 +192,7 @@ export const style = css`
         display: flex;
         flex-direction: row;
         align-items: center;
+        color: var(--internal-or-asset-viewer-title-text-color);
     }
 
     #title > or-icon {

@@ -12,8 +12,8 @@ import org.openremote.manager.rules.RulesService
 import org.openremote.manager.rules.RulesetStorageService
 import org.openremote.manager.rules.geofence.ORConsoleGeofenceAssetAdapter
 import org.openremote.manager.setup.SetupService
-import org.openremote.test.setup.KeycloakTestSetup
-import org.openremote.test.setup.ManagerTestSetup
+import org.openremote.setup.integration.KeycloakTestSetup
+import org.openremote.setup.integration.ManagerTestSetup
 import org.openremote.model.asset.Asset
 import org.openremote.model.asset.AssetResource
 import org.openremote.model.asset.impl.ConsoleAsset
@@ -40,8 +40,8 @@ import javax.ws.rs.WebApplicationException
 import java.util.concurrent.TimeUnit
 import java.util.stream.IntStream
 
-import static org.openremote.test.setup.ManagerTestSetup.DEMO_RULE_STATES_SMART_BUILDING
-import static org.openremote.test.setup.ManagerTestSetup.SMART_BUILDING_LOCATION
+import static org.openremote.setup.integration.ManagerTestSetup.DEMO_RULE_STATES_SMART_BUILDING
+import static org.openremote.setup.integration.ManagerTestSetup.SMART_BUILDING_LOCATION
 import static org.openremote.model.Constants.KEYCLOAK_CLIENT_ID
 import static org.openremote.model.asset.AssetResource.Util.WRITE_ATTRIBUTE_HTTP_METHOD
 import static org.openremote.model.asset.AssetResource.Util.getWriteAttributeUrl
@@ -231,6 +231,7 @@ class ConsoleTest extends Specification implements ManagerContainerTrait {
         returnedConsoleRegistration.providers.get("test").disabled = false
         returnedConsoleRegistration = anonymousConsoleResource.register(null, returnedConsoleRegistration)
         console = assetStorageService.find(consoleId, true)
+        testUser3Console1 = console
         consoleTestProvider = console.getConsoleProviders().map{it.get("test")}.orElse(null)
 
         then: "the returned console should contain the updated data and have the same id"
@@ -330,7 +331,27 @@ class ConsoleTest extends Specification implements ManagerContainerTrait {
         and: "the console should not have been linked to any users"
         assert userAssets.isEmpty()
 
-        and: "each created consoles should have been sent notifications to refresh their geofences"
+        when: "the location of each console is marked as RULE_STATE"
+        testUser3Console1.getAttribute(Asset.LOCATION).ifPresent {it -> it.addMeta(
+                new MetaItem<>(MetaItemType.RULE_STATE),
+                new MetaItem<>(MetaItemType.ACCESS_RESTRICTED_WRITE),
+                new MetaItem<>(MetaItemType.ACCESS_RESTRICTED_READ)
+        )}
+        testUser3Console1 = assetStorageService.merge(testUser3Console1)
+        testUser3Console2.getAttribute(Asset.LOCATION).ifPresent {it -> it.addMeta(
+                new MetaItem<>(MetaItemType.RULE_STATE),
+                new MetaItem<>(MetaItemType.ACCESS_RESTRICTED_WRITE),
+                new MetaItem<>(MetaItemType.ACCESS_RESTRICTED_READ)
+        )}
+        testUser3Console2 = assetStorageService.merge(testUser3Console2)
+        anonymousConsole1.getAttribute(Asset.LOCATION).ifPresent {it -> it.addMeta(
+                new MetaItem<>(MetaItemType.RULE_STATE),
+                new MetaItem<>(MetaItemType.ACCESS_RESTRICTED_WRITE),
+                new MetaItem<>(MetaItemType.ACCESS_RESTRICTED_READ)
+        )}
+        anonymousConsole1 = assetStorageService.merge(anonymousConsole1)
+
+        then: "each created consoles should have been sent notifications to refresh their geofences"
         conditions.eventually {
             assert notificationIds.size() == 3
             assert messages.count { ((PushNotificationMessage) it).data.get("action").asText() == "GEOFENCE_REFRESH" } == 3

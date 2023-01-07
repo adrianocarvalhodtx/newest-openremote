@@ -1,18 +1,14 @@
 package org.openremote.test.rules
 
 import org.openremote.manager.rules.RulesEngine
-import org.openremote.manager.rules.RulesFacts
-import org.openremote.manager.rules.RulesLoopException
 import org.openremote.manager.rules.RulesService
 import org.openremote.manager.rules.RulesetStorageService
 import org.openremote.manager.security.ManagerIdentityService
 import org.openremote.manager.setup.SetupService
-import org.openremote.test.setup.KeycloakTestSetup
-import org.openremote.test.setup.ManagerTestSetup
-import org.openremote.model.attribute.MetaItem
+import org.openremote.setup.integration.KeycloakTestSetup
+import org.openremote.setup.integration.ManagerTestSetup
 import org.openremote.model.rules.AssetRuleset
 import org.openremote.model.rules.GlobalRuleset
-import org.openremote.model.rules.Ruleset
 import org.openremote.model.rules.RealmRuleset
 import org.openremote.test.ManagerContainerTrait
 import spock.lang.Specification
@@ -161,14 +157,14 @@ class BasicRulesDeploymentTest extends Specification implements ManagerContainer
         )
         ruleset = rulesetStorageService.merge(ruleset)
 
-        then: "the global rules engine should not run and the rule engine status should indicate the issue"
+        then: "the global rules engine should still run and the rule engine status should indicate the issue"
         conditions.eventually {
             assert rulesService.globalEngine.deployments.size() == 3
-            assert !rulesService.globalEngine.running
-            assert rulesService.globalEngine.isError()
+            assert rulesService.globalEngine.running
+            assert !rulesService.globalEngine.isError()
             assert rulesService.globalEngine.error instanceof RuntimeException
-            assert rulesService.globalEngine.deployments.values().any({ it.name == "Some global demo rules" && it.status == READY})
-            assert rulesService.globalEngine.deployments.values().any({ it.name == "Some more global rules" && it.status == READY})
+            assert rulesService.globalEngine.deployments.values().any({ it.name == "Some global demo rules" && it.status == DEPLOYED})
+            assert rulesService.globalEngine.deployments.values().any({ it.name == "Some more global rules" && it.status == DEPLOYED})
             assert rulesService.globalEngine.deployments.values().any({ it.name == "Some broken global rules" && it.status == COMPILATION_ERROR})
         }
 
@@ -180,6 +176,7 @@ class BasicRulesDeploymentTest extends Specification implements ManagerContainer
             assert rulesService.globalEngine.deployments.size() == 2
             assert rulesService.globalEngine.running
             assert !rulesService.globalEngine.isError()
+            assert rulesService.globalEngine.error == null
             assert rulesService.globalEngine.deployments.values().any({ it.name == "Some global demo rules" && it.status == DEPLOYED })
             assert rulesService.globalEngine.deployments.values().any({ it.name == "Some more global rules" && it.status == DEPLOYED })
         }
@@ -238,7 +235,7 @@ class BasicRulesDeploymentTest extends Specification implements ManagerContainer
             "Throw Failure Exception",
             GROOVY,
             getClass().getResource("/org/openremote/test/failure/RulesFailureActionThrowsException.groovy").text)
-        ruleset.getMeta().add(new MetaItem<>(Ruleset.CONTINUE_ON_ERROR, true))
+            .setContinueOnError(true)
         ruleset = rulesetStorageService.merge(ruleset)
 
         then: "the realms A rule engine should run with one deployment as error"

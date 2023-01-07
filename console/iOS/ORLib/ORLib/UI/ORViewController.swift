@@ -22,27 +22,22 @@ import Foundation
 import UIKit
 import WebKit
 import MaterialComponents.MaterialButtons
-import Popover
 
 open class ORViewcontroller : UIViewController {
     
     var data : Data?
-    public var menuButton: MDCFloatingButton?
-    var menuList: UIView?
     var myWebView : WKWebView?
     var webProgressBar: UIProgressView?
     var defaults : UserDefaults?
     var webCfg : WKWebViewConfiguration?
-    public var appConfig: ORAppConfig?
-    var popover: Popover?
     public var geofenceProvider: GeofenceProvider?
     public var pushProvider: PushNotificationProvider?
     public var storageProvider: StorageProvider?
     public var qrProvider: QrScannerProvider?
     
     public var baseUrl: String?
-
-    var popoverOptions: [PopoverOption]?
+    
+    public var targetUrl: String?
     
     open override func viewDidLoad() {
         super.viewDidLoad()
@@ -52,12 +47,13 @@ open class ORViewcontroller : UIViewController {
 
     open override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        if let applicationConfig = appConfig {
-            var url = applicationConfig.initialUrl ?? applicationConfig.url
-            if !url.starts(with: "http") {
-                url = baseUrl!.appending(url)
+        
+        if let targetUrl = targetUrl {
+            if let urlString = targetUrl.stringByURLEncoding() {
+                if let url = URL(string: urlString) {
+                    loadURL(url: url)
+                }
             }
-            loadURL(url: URL(string: url.stringByURLEncoding()!)!)
         }
     }
 
@@ -65,14 +61,17 @@ open class ORViewcontroller : UIViewController {
         if let theJSONData = try? JSONSerialization.data(
             withJSONObject: data,
             options: []) {
-            let theJSONText = String(data: theJSONData,
-                                     encoding: .utf8)
-            let returnMessage = "OpenRemoteConsole._handleProviderResponse('\(theJSONText ?? "null")')"
-            DispatchQueue.main.async {
-                self.myWebView?.evaluateJavaScript("\(returnMessage)", completionHandler: { (any, error) in
-                    print(error)
-                    print("JSON string = \(theJSONText!)")
-                })
+            if let theJSONText = String(data: theJSONData,
+                                        encoding: .utf8) {
+                print("notifyClient with message: \(theJSONText)")
+                let returnMessage = "OpenRemoteConsole._handleProviderResponse('\(theJSONText)')"
+                DispatchQueue.main.async {
+                    self.myWebView?.evaluateJavaScript("\(returnMessage)", completionHandler: { (any, error) in
+                        if let err = error {
+                            print(err)
+                        }
+                    })
+                }
             }
         }
     }
@@ -113,90 +112,6 @@ open class ORViewcontroller : UIViewController {
         webProgressBar?.trailingAnchor.constraint(equalTo: myWebView!.trailingAnchor).isActive = true
         webProgressBar?.topAnchor.constraint(equalTo: myWebView!.topAnchor, constant: -2).isActive = true
         webProgressBar?.heightAnchor.constraint(equalToConstant: 2).isActive = true
-
-        self.processAppConfig()
-    }
-    
-    public func processAppConfig() {
-        if appConfig?.menuEnabled ?? false {
-
-            let sbHeight: CGFloat
-            if #available(iOS 11.0, *) {
-                sbHeight = UIApplication.shared.keyWindow?.safeAreaInsets.top ?? UIApplication.shared.statusBarFrame.height
-            } else {
-                sbHeight = UIApplication.shared.statusBarFrame.height
-            }
-            
-            let bundle = Bundle(for: ORViewcontroller.self)
-            
-            menuButton = MDCFloatingButton(shape: .default)
-            menuButton?.backgroundColor = UIColor(hexaRGB: appConfig?.primaryColor ?? "#43A047")
-            menuButton?.translatesAutoresizingMaskIntoConstraints = false
-            menuButton?.addTarget(self, action: #selector(self.pressed(sender:)), for: .touchUpInside)
-            menuButton?.setImage(UIImage(named: "ic_menu", in: bundle, compatibleWith: nil), for: .normal)
-            menuButton?.setImage(UIImage(named: "ic_menu", in: bundle, compatibleWith: nil), for: .selected)
-            menuButton?.setImage(UIImage(named: "ic_menu", in: bundle, compatibleWith: nil), for: .highlighted)
-            menuButton?.isHidden = true
-
-            if let secondColor = appConfig?.secondaryColor {
-                menuButton?.tintColor = UIColor(hexaRGB: secondColor)
-            }
-
-            view.addSubview(menuButton!)
-            view.bringSubviewToFront(menuButton!)
-
-            let constraints: Array<NSLayoutConstraint> = {
-                if appConfig!.menuPosition == "BOTTOM_RIGHT" {
-                    self.popoverOptions = [
-                        .type(.up),
-                        .arrowSize(.zero),
-                    ]
-                    return [
-                        menuButton!.rightAnchor.constraint(equalTo: self.view.rightAnchor, constant: -20),
-                        menuButton!.bottomAnchor.constraint(equalTo: self.view.bottomAnchor, constant: -20)
-                    ]
-                } else if appConfig!.menuPosition == "TOP_RIGHT" {
-                    self.popoverOptions = [
-                        .type(.down),
-                        .arrowSize(.zero),
-                    ]
-                    return [
-                        menuButton!.rightAnchor.constraint(equalTo: self.view.rightAnchor, constant: -20),
-                        menuButton!.topAnchor.constraint(equalTo: self.view.topAnchor, constant: sbHeight)
-                    ]
-                } else if appConfig!.menuPosition == "TOP_LEFT" {
-                    self.popoverOptions = [
-                        .type(.down),
-                        .arrowSize(.zero),
-                    ]
-                    return [
-                        menuButton!.leftAnchor.constraint(equalTo: self.view.leftAnchor, constant: 20),
-                        menuButton!.topAnchor.constraint(equalTo: self.view.topAnchor, constant: sbHeight)
-                    ]
-                }
-                self.popoverOptions = [
-                    .type(.up),
-                    .arrowSize(.zero),
-
-                ]
-                return [
-                    menuButton!.leftAnchor.constraint(equalTo: self.view.leftAnchor, constant: 20),
-                    menuButton!.bottomAnchor.constraint(equalTo: self.view.bottomAnchor, constant: -20)
-                ]
-            }()
-
-            NSLayoutConstraint.activate(constraints)
-        }
-    }
-
-    @objc func pressed(sender: UIButton!) {
-        let linkCount = appConfig?.links?.count ?? 0
-        let tableView = UITableView(frame: CGRect(x: 0, y: 0, width: self.view.frame.width / 2, height: CGFloat(linkCount * 60)))
-        tableView.delegate = self
-        tableView.dataSource = self
-        tableView.isScrollEnabled = false
-        self.popover = Popover(options: self.popoverOptions)
-        self.popover!.show(tableView, fromView: self.menuButton!)
     }
 
     public override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
@@ -231,54 +146,36 @@ open class ORViewcontroller : UIViewController {
         print("Error requesting '\(failingUrl)': \(errorCode) (\(description))")
 
         let alertView = UIAlertController(title: "Error", message: "Error requesting '\(failingUrl)': \(errorCode) (\(description))", preferredStyle: .alert)
-        alertView.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
 
-        if let applicationConfig = appConfig {
-            self.present(alertView, animated: true, completion: nil)
-            var url = applicationConfig.url
-            if !url.starts(with: "http") {
-                url = baseUrl!.appending(url)
-            }
-            self.myWebView?.load(URLRequest(url: URL(string: url.stringByURLEncoding()!)!))
+        if self.presentingViewController != nil {
+            alertView.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in self.dismiss(animated: true)} ))
+        } else {
+            alertView.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+        }
+        self.present(alertView, animated: true, completion: nil)
+
+        /*
+        if (false) {
+            //TODO need to have case to return to home url of config or go back to wizard to setup project enviroment
+//            self.myWebView?.load(URLRequest(url: URL(string: url.stringByURLEncoding()!)!))
         } else {
             if self.presentingViewController != nil {
                 self.dismiss(animated: true) {
-                    self.presentingViewController!.present(alertView, animated: true, completion: nil)
+                    
+                    // TODO: this original code is causing error
+                    // self.presentingViewController!.present(alertView, animated: true, completion: nil)
                 }
             } else {
                 self.present(alertView, animated: true, completion: nil)
             }
         }
-    }
-}
-
-extension ORViewcontroller: UITableViewDelegate {
-
-    public func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        self.popover?.dismiss()
-        loadURL(url: URL(string: appConfig!.links![indexPath.row].pageLink.stringByURLEncoding()!)!)
-    }
-
-    public func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        return 60
-    }
-}
-
-extension ORViewcontroller: UITableViewDataSource {
-
-    public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int{
-        return appConfig?.links?.count ?? 0
-    }
-
-    public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
-        cell.textLabel?.text = appConfig!.links![indexPath.row].displayText
-        return cell
+         */
     }
 }
 
 extension ORViewcontroller: WKScriptMessageHandler {
     public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        print("Received WebApp message \(message.body)")
         let jsonDictionnary = message.body as? [String : Any]
         if let type = jsonDictionnary?["type"] as? String {
             switch (type) {
@@ -315,10 +212,10 @@ extension ORViewcontroller: WKScriptMessageHandler {
                                     sendData(data: initializeData)
                                 case Actions.providerEnable:
                                     if let consoleId = postMessageDict[GeofenceProvider.consoleIdKey] as? String {
-                                        if let userdefaults = UserDefaults(suiteName: DefaultsKey.groupEntitlement),
-                                           let host = userdefaults.string(forKey: DefaultsKey.hostKey),
-                                           let realm = userdefaults.string(forKey: DefaultsKey.realmKey) {
-                                            let baseUrl = host.appending("/api/\(realm)")
+                                        if let userdefaults = UserDefaults(suiteName: DefaultsKey.groupEntitlement){
+                                            let host = userdefaults.string(forKey: DefaultsKey.hostKey) ?? ""
+                                            let realm = userdefaults.string(forKey: DefaultsKey.realmKey) ?? ""
+                                            let baseUrl = host.isEmpty ? "" : host.appending("/api/\(realm)")
                                             geofenceProvider?.enable(baseUrl: baseUrl, consoleId: consoleId,  callback: { enableData in
                                                 self.sendData(data: enableData)
                                                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(5)) {
@@ -333,28 +230,6 @@ extension ORViewcontroller: WKScriptMessageHandler {
                                     }
                                 case Actions.geofenceRefresh:
                                     geofenceProvider?.refreshGeofences()
-                                case Actions.getLocation:
-                                    geofenceProvider?.getLocation(callback: { locationData in
-                                        if (locationData["data"] as? [String:Any]) == nil {
-                                            let alertController = UIAlertController(title: "Location permission denied",
-                                                                                    message: "In order to get the location it's necessary to give permissions to the app. Do you want to open the settings?",
-                                                                                    preferredStyle: .alert)
-                                            if let settingsUrl = URL(string: UIApplication.openSettingsURLString), UIApplication.shared.canOpenURL(settingsUrl) {
-                                                alertController.addAction(UIAlertAction(title: "OK", style: .default, handler: { alertAction in
-                                                    if UIApplication.shared.canOpenURL(settingsUrl) {
-                                                        UIApplication.shared.open(settingsUrl, completionHandler: { (success) in
-                                                            print("Settings opened: \(success)") // Prints true
-                                                        })
-                                                    }
-                                                }))
-                                                alertController.addAction(UIAlertAction(title: "Not now", style: .cancel, handler: nil))
-                                            } else {
-                                                alertController.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
-                                            }
-                                            self.present(alertController, animated: true, completion: nil)
-                                        }
-                                        self.sendData(data: locationData)
-                                    })
                                 default:
                                     print("Wrong action \(action) for \(provider)")
                                 }
@@ -443,16 +318,6 @@ extension ORViewcontroller: WKNavigationDelegate {
                     decisionHandler(.cancel)
                 }
             } else {
-                if let config = appConfig, let button = menuButton {
-                    var url = config.url
-                    if !url.starts(with: "http") {
-                        url = baseUrl!.appending(url)
-                    }
-                    if url == navigationAction.request.url?.absoluteString {
-                        button.isHidden = false
-                    }
-                }
-
                 decisionHandler(.allow)
             }
         }

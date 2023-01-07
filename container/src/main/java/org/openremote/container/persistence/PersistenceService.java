@@ -20,12 +20,14 @@
 package org.openremote.container.persistence;
 
 import org.apache.camel.ExchangePattern;
+import org.apache.camel.FluentProducerTemplate;
 import org.apache.camel.Predicate;
 import org.apache.camel.ProducerTemplate;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.flywaydb.core.api.output.MigrateResult;
 import org.hibernate.Session;
+import org.hibernate.annotations.Formula;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl;
@@ -36,6 +38,8 @@ import org.openremote.model.apps.ConsoleAppConfig;
 import org.openremote.model.asset.Asset;
 import org.openremote.model.asset.AssetDescriptor;
 import org.openremote.model.asset.UserAssetLink;
+import org.openremote.model.asset.impl.UnknownAsset;
+import org.openremote.model.dashboard.Dashboard;
 import org.openremote.model.datapoint.AssetDatapoint;
 import org.openremote.model.gateway.GatewayConnection;
 import org.openremote.model.notification.SentNotification;
@@ -306,6 +310,7 @@ public class PersistenceService implements ContainerService, Consumer<Persistenc
         entityClasses.add(SyslogEvent.class.getName());
         entityClasses.add(GatewayConnection.class.getName());
         entityClasses.add(ConsoleAppConfig.class.getName());
+        entityClasses.add(Dashboard.class.getName());
         entityClasses.add(ProvisioningConfig.class.getName());
         entityClasses.add(X509ProvisioningConfig.class.getName());
 
@@ -314,6 +319,7 @@ public class PersistenceService implements ContainerService, Consumer<Persistenc
         entityClasses.add("org.openremote.container.util");
 
         // Get asset sub type entities from asset model
+        entityClasses.add(UnknownAsset.class.getName()); // This doesn't have an asset descriptor which is why it is specifically added
         Arrays.stream(ValueUtil.getAssetDescriptors(null))
             .map(AssetDescriptor::getType)
             .filter(assetClass -> assetClass.getAnnotation(Entity.class) != null)
@@ -418,7 +424,10 @@ public class PersistenceService implements ContainerService, Consumer<Persistenc
     /**
      * Generate {@link PersistenceEvent}s for entities not managed by JPA (i.e. Keycloak entities)
      */
-    public void publishPersistenceEvent(PersistenceEvent.Cause cause, Object currentEntity, Object previousEntity, Field[] propertyFields) {
+    public void publishPersistenceEvent(PersistenceEvent.Cause cause, Object currentEntity, Object previousEntity, Class<?> clazz, List<String> includeFields, List<String> excludeFields) {
+
+        Field[] propertyFields = getEntityPropertyFields(clazz, includeFields, excludeFields);
+
         switch (cause) {
             case CREATE:
                 publishPersistenceEvent(cause, currentEntity, null, null, null);
@@ -451,14 +460,12 @@ public class PersistenceService implements ContainerService, Consumer<Persistenc
         // Fire persistence event although we don't use database for Realm CUD but call Keycloak API
         PersistenceEvent<?> persistenceEvent = new PersistenceEvent<>(cause, entity, propertyNames, currentState, previousState);
 
-        if (messageBrokerService.getProducerTemplate() != null) {
-            messageBrokerService.getProducerTemplate().sendBodyAndHeader(
-                PERSISTENCE_TOPIC,
-                ExchangePattern.InOnly,
-                persistenceEvent,
-                HEADER_ENTITY_TYPE,
-                persistenceEvent.getEntity().getClass()
-            );
+        if (messageBrokerService.getFluentProducerTemplate() != null) {
+            messageBrokerService.getFluentProducerTemplate()
+                .withBody(persistenceEvent)
+                .withHeader(HEADER_ENTITY_TYPE, persistenceEvent.getEntity().getClass())
+                .to(PERSISTENCE_TOPIC)
+                .asyncSend();
         }
     }
 
@@ -481,6 +488,7 @@ public class PersistenceService implements ContainerService, Consumer<Persistenc
 
         flyway = Flyway.configure()
             .cleanDisabled(false)
+            .validateMigrationNaming(true)
             .dataSource(connectionUrl, databaseUsername, databasePassword)
             .schemas(schemas.toArray(new String[0]))
             .locations(locations.toArray(new String[0]))
@@ -520,16 +528,14 @@ public class PersistenceService implements ContainerService, Consumer<Persistenc
     @Override
     public void accept(PersistenceEvent<?> persistenceEvent) {
 
-        ProducerTemplate producerTemplate = messageBrokerService.getProducerTemplate();
+        FluentProducerTemplate producerTemplate = messageBrokerService.getFluentProducerTemplate();
 
         if (producerTemplate != null) {
-            producerTemplate.sendBodyAndHeader(
-                PersistenceService.PERSISTENCE_TOPIC,
-                ExchangePattern.InOnly,
-                persistenceEvent,
-                PersistenceService.HEADER_ENTITY_TYPE,
-                persistenceEvent.getEntity().getClass()
-            );
+            producerTemplate
+                .withBody(persistenceEvent)
+                .withHeader(HEADER_ENTITY_TYPE, persistenceEvent.getEntity().getClass())
+                .to(PERSISTENCE_TOPIC)
+                .asyncSend();
         }
     }
 
@@ -539,5 +545,12 @@ public class PersistenceService implements ContainerService, Consumer<Persistenc
             "database=" + database +
             ", persistenceUnitName='" + persistenceUnitName + '\'' +
             '}';
+    }
+
+    public static Field[] getEntityPropertyFields(Class<?> clazz, List<String> includeFields, List<String> excludeFields) {
+        return Arrays.stream(clazz.getDeclaredFields())
+            .filter(field -> ((field.isAnnotationPresent(Column.class) || field.isAnnotationPresent(EmbeddedId.class) || field.isAnnotationPresent(JoinColumn.class) || field.isAnnotationPresent(Formula.class)) && (excludeFields == null || !excludeFields.contains(field.getName())))
+                || (includeFields != null && includeFields.contains(field.getName())))
+            .toArray(Field[]::new);
     }
 }

@@ -40,7 +40,6 @@ ENV OR_KEYCLOAK_PORT ${OR_KEYCLOAK_PORT:-8080}
 ENV OR_KEYCLOAK_GRANT_FILE ${OR_KEYCLOAK_GRANT_FILE:-/deployment/manager/keycloak.json}
 ENV OR_APP_DOCROOT ${OR_APP_DOCROOT:-/opt/web}
 ENV OR_CUSTOM_APP_DOCROOT ${OR_CUSTOM_APP_DOCROOT:-/deployment/manager/app}
-ENV OR_CONSOLE_APP_CONFIG_DOCROOT ${OR_CONSOLE_APP_CONFIG_DOCROOT:-/deployment/manager/consoleappconfig}
 ENV OR_PROVISIONING_DOCROOT ${OR_PROVISIONING_DOCROOT:-/deployment/manager/provisioning}
 ENV OR_ROOT_REDIRECT_PATH ${OR_ROOT_REDIRECT_PATH:-/manager}
 ENV OR_DATA_POINTS_EXPORT_DIR ${OR_DATA_POINTS_EXPORT_DIR:-/tmp}
@@ -55,11 +54,10 @@ ENV OR_RULE_EVENT_EXPIRES ${OR_RULE_EVENT_EXPIRES:-PT1H}
 ENV OR_IDENTITY_PROVIDER ${OR_IDENTITY_PROVIDER:-keycloak}
 ENV OR_IDENTITY_SESSION_MAX_MINUTES ${OR_IDENTITY_SESSION_MAX_MINUTES:-1440}
 ENV OR_IDENTITY_SESSION_OFFLINE_TIMEOUT_MINUTES ${OR_IDENTITY_SESSION_OFFLINE_TIMEOUT_MINUTES:-2628000}
-ENV OR_JAVA_OPTS ${OR_JAVA_OPTS:--Xms400m -Xmx400m \
-    -XX:CompressedClassSpaceSize=25m -XX:MaxMetaspaceSize=150m \
-    -XX:InitialCodeCacheSize=50m -XX:ReservedCodeCacheSize=50m \
-    -XX:MaxDirectMemorySize=25m -XX:NativeMemoryTracking=summary \
-    -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/javadump.core.hprof}
+ENV OR_JAVA_OPTS ${OR_JAVA_OPTS:--Xms500m -Xmx2g \
+    -XX:NativeMemoryTracking=summary \
+    -Xlog:all=warning:stdout:uptime,level,tags \
+    -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/dump.hprof}
 
 RUN mkdir -p /deployment/manager/extensions
 
@@ -68,6 +66,7 @@ WORKDIR /opt/app
 ADD lib /opt/app/lib
 ADD web /opt/web
 ADD map /opt/map
+COPY ./extensions/ /deployment/manager/extensions/
 
 EXPOSE 8080
 EXPOSE 1883
