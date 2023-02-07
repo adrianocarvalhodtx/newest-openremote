@@ -84,6 +84,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
     public static final String ATTRIBUTE_TOPIC = "attribute";
     public static final String ATTRIBUTE_VALUE_TOPIC = "attributevalue";
     public static final String ATTRIBUTE_VALUE_WRITE_TOPIC = "writeattributevalue";
+    public static final String ATTRIBUTE_VALUE_WRITE_ULTRALIGHT_TOPIC = "wav-ul";
     private static final Logger LOG = SyslogCategory.getLogger(API, DefaultMQTTHandler.class);
     protected AssetStorageService assetStorageService;
     protected final ConcurrentMap<String, SubscriberInfo> connectionSubscriberInfoMap = new ConcurrentHashMap<>();
@@ -417,7 +418,8 @@ public class DefaultMQTTHandler extends MQTTHandler {
     @Override
     public Set<String> getPublishListenerTopics() {
         return Set.of(
-            TOKEN_SINGLE_LEVEL_WILDCARD + "/" + TOKEN_SINGLE_LEVEL_WILDCARD + "/" + ATTRIBUTE_VALUE_WRITE_TOPIC + "/" + TOKEN_MULTI_LEVEL_WILDCARD
+            TOKEN_SINGLE_LEVEL_WILDCARD + "/" + TOKEN_SINGLE_LEVEL_WILDCARD + "/" + ATTRIBUTE_VALUE_WRITE_TOPIC            + "/" + TOKEN_MULTI_LEVEL_WILDCARD,
+            TOKEN_SINGLE_LEVEL_WILDCARD + "/" + TOKEN_SINGLE_LEVEL_WILDCARD + "/" + ATTRIBUTE_VALUE_WRITE_ULTRALIGHT_TOPIC + "/" + TOKEN_MULTI_LEVEL_WILDCARD
         );
     }
 
@@ -425,7 +427,13 @@ public class DefaultMQTTHandler extends MQTTHandler {
     public void onPublish(RemotingConnection connection, Topic topic, ByteBuf body) {
         List<String> topicTokens = topic.getTokens();
         String payloadContent = body.toString(StandardCharsets.UTF_8);
-        Object value = ValueUtil.parse(payloadContent).orElse(null);
+        Object value = null;
+        if (topicTokens.get(2).equalsIgnoreCase(ATTRIBUTE_VALUE_WRITE_TOPIC)) {
+            value = ValueUtil.parse(payloadContent).orElse(null);
+        }
+        else if (topicTokens.get(2).equalsIgnoreCase(ATTRIBUTE_VALUE_WRITE_ULTRALIGHT_TOPIC)) {
+            value = ValueUtil.parseUltralight(payloadContent).orElse(null);
+        }
         AttributeEvent attributeEvent = buildAttributeEvent(topicTokens, value);
         Map<String, Object> headers = prepareHeaders(topicRealm(topic), connection);
         messageBrokerService.getFluentProducerTemplate()
@@ -589,7 +597,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
     }
 
     protected static boolean isAttributeValueWriteTopic(Topic topic) {
-        return ATTRIBUTE_VALUE_WRITE_TOPIC.equalsIgnoreCase(topicTokenIndexToString(topic, 2));
+        return ATTRIBUTE_VALUE_WRITE_TOPIC.equalsIgnoreCase(topicTokenIndexToString(topic, 2)) || ATTRIBUTE_VALUE_WRITE_ULTRALIGHT_TOPIC.equalsIgnoreCase(topicTokenIndexToString(topic, 2));
     }
 
     protected static boolean isAssetTopic(Topic topic) {

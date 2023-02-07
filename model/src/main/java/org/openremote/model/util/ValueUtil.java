@@ -202,6 +202,33 @@ public class ValueUtil {
         return parse(jsonString, JSON.constructType(type));
     }
 
+    public static Optional<JsonNode> parseUltralight(String ultralightString) {
+        if (TextUtil.isNullOrEmpty(ultralightString) || NULL_LITERAL.equals(ultralightString)) {
+            return Optional.empty();
+        }
+        try {
+            String jsonString;
+            List<String> keyValuePairStrings = new ArrayList<String>();
+            String[] flatKeyValuePairs = ultralightString.split("\\|");
+            if (flatKeyValuePairs.length % 2 == 0) {
+                for (int i = 0; i < flatKeyValuePairs.length; i +=2) {
+                    String key = flatKeyValuePairs[i];
+                    String value = flatKeyValuePairs[i + 1];
+                    keyValuePairStrings.add("\"" + key   + "\":\"" + value + "\"");
+                }
+
+                jsonString = "{" + String.join(",", keyValuePairStrings) + "}";
+            }
+            else {
+                throw new Exception("one key has no value");
+            }
+            return Optional.of(JSON.readTree(jsonString));
+        } catch (Exception e) {
+            LOG.log(Level.INFO, "Failed to parse Ultralight string: " + ultralightString, e);
+        }
+        return Optional.empty();
+    }
+
     public static Optional<String> asJSON(Object object) {
         try {
             return Optional.of(asJSONOrThrow(object));
