@@ -32,6 +32,8 @@ import org.openremote.model.util.Pair;
 import org.openremote.model.util.ValueUtil;
 import org.openremote.model.value.MetaItemType;
 
+import com.fasterxml.jackson.databind.node.NullNode;
+
 import javax.persistence.EntityManager;
 import java.util.Arrays;
 import java.util.NoSuchElementException;
@@ -159,7 +161,7 @@ public class AttributeLinkingService implements ContainerService, AssetUpdatePro
         // Get the attribute and try and coerce the value into the correct type
         getAttribute(em, assetStorageService, attributeLink.getAttributeRef()).ifPresent(attribute -> {
 
-            if (value[0] != null) {
+            if (value[0] != null && !(value[0] instanceof NullNode)) {
 
                 // Do basic value conversion
                 if (!attribute.getType().getType().isAssignableFrom(value[0].getClass())) {
@@ -172,9 +174,9 @@ public class AttributeLinkingService implements ContainerService, AssetUpdatePro
                     }
                     value[0] = val;
                 }
-            }
 
-            sendAttributeEvent(new AttributeEvent(attributeLink.getAttributeRef(), value[0]));
+                sendAttributeEvent(new AttributeEvent(attributeLink.getAttributeRef(), value[0]));
+            }
 
         });
     }
