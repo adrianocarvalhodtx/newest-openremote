@@ -41,6 +41,7 @@ import java.util.Optional;
 import java.util.logging.Logger;
 
 import static org.openremote.model.attribute.AttributeEvent.Source.ATTRIBUTE_LINKING_SERVICE;
+import static org.openremote.model.attribute.AttributeEvent.Source.GATEWAY;
 
 /**
  * This service processes asset updates on attributes that have one or more {@link MetaItemType#ATTRIBUTE_LINKS} meta items.
@@ -118,6 +119,11 @@ public class AttributeLinkingService implements ContainerService, AssetUpdatePro
                                       Source source) throws AssetProcessingException {
         if (source == ATTRIBUTE_LINKING_SERVICE) {
             LOG.finest("Attribute update came from this service so ignoring to avoid infinite loops: " + attribute);
+            return false;
+        }
+
+        if (source == GATEWAY) {
+            LOG.finest("Attribute update came from a GATEWAY so ignoring: " + attribute);
             return false;
         }
 
