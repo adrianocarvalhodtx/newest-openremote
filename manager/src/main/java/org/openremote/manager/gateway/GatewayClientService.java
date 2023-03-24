@@ -271,7 +271,12 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
         } catch (Exception e) {
             LOG.log(Level.WARNING, "Creating gateway IO client failed so marking connection as disabled: " + connection, e);
             connection.setDisabled(true);
-            setConnection(connection);
+            try {
+                setConnection(connection);
+            }
+            catch (Exception e2) {
+                LOG.log(Level.SEVERE, "Failed to mark connection as disabled: " + connection, e2);
+            }
         }
 
         return null;
@@ -424,7 +429,12 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
         return new ArrayList<>(connectionIdMap.values());
     }
 
-    public void setConnection(GatewayConnection connection) {
+    public void setConnection(GatewayConnection connection) throws Exception {
+        if (connection.getLocalUser().isEmpty() == false
+            && getUserIdByConnection(connection) == null)
+        {
+            throw new Exception("Gateway connection's localUser not found: " + connection);
+        }
         LOG.info("Updating/creating gateway connection: " + connection);
         persistenceService.doTransaction(em -> em.merge(connection));
     }
