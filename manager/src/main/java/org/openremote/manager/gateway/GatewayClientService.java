@@ -49,6 +49,7 @@ import org.openremote.model.gateway.GatewayConnectionStatusEvent;
 import org.openremote.model.gateway.GatewayDisconnectEvent;
 import org.openremote.model.query.AssetQuery;
 import org.openremote.model.query.filter.RealmPredicate;
+import org.openremote.model.security.User;
 import org.openremote.model.syslog.SyslogCategory;
 import org.openremote.model.util.ValueUtil;
 
@@ -238,7 +239,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                         isUserAsset = true;
                     else
                         isUserAsset = assetStorageService.isUserAsset(
-                            identityService.getIdentityProvider().getUserByUsername(connection.getLocalRealm(), connection.getLocalUser()).getId(),
+                            getUserIdByConnection(connection),
                             assetEvent.getAssetId()
                         );
                     LOG.info("AssetEvent: {AssetId: " + assetEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: " + isUserAsset + "}");
@@ -256,7 +257,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                         isUserAsset = true;
                     else
                         isUserAsset = assetStorageService.isUserAsset(
-                            identityService.getIdentityProvider().getUserByUsername(connection.getLocalRealm(), connection.getLocalUser()).getId(),
+                            getUserIdByConnection(connection),
                             attributeEvent.getAssetId()
                         );
                     LOG.info("attributeEvent: {AssetId: " + attributeEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: " + isUserAsset + "}");
@@ -365,7 +366,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
 
                 if (connection.getLocalUser().isEmpty() == false)
                     query.userIds(
-                        identityService.getIdentityProvider().getUserByUsername(connection.getLocalRealm(), connection.getLocalUser()).getId()
+                        getUserIdByConnection(connection)
                     );
 
                 List<Asset<?>> assets = assetStorageService.findAll(readAssets.getAssetQuery());
@@ -408,6 +409,14 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
     protected String messageToString(String prefix, Object message) {
         String str = ValueUtil.asJSON(message).orElse("null");
         return prefix + str;
+    }
+
+    private String getUserIdByConnection(GatewayConnection connection) {
+        User user = identityService.getIdentityProvider().getUserByUsername(connection.getLocalRealm(), connection.getLocalUser());
+        if (user != null) {
+            return user.getId();
+        }
+        return null;
     }
 
     /** GATEWAY RESOURCE METHODS */
