@@ -321,7 +321,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
         if (event != null) {
             if (event instanceof GatewayDisconnectEvent) {
                 if (((GatewayDisconnectEvent)event).getReason() == GatewayDisconnectEvent.Reason.PERMANENT_ERROR) {
-                    LOG.info("Central manager requested disconnect due to permanent error (likely this version of the edge gateway software is not compatible with that manager version)");
+                    LOG.log(Level.WARNING, "Central manager requested disconnect due to permanent error (likely this version of the edge gateway software is not compatible with that manager version)");
                     destroyGatewayClient(connection, clientIdMap.get(connection.getId()));
                     clientIdMap.put(connection.getId(), null);
                 }
@@ -336,7 +336,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                     try {
                         asset = assetStorageService.merge(asset, true);
                     } catch (Exception e) {
-                        LOG.log(Level.INFO, "Request from central manager to create/update an asset failed: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> ID=" + asset.getId(), e);
+                        LOG.log(Level.WARNING, "Request from central manager to create/update an asset failed: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> ID=" + asset.getId(), e);
                     }
                 }
             } else if (event instanceof DeleteAssetsRequestEvent) {
@@ -346,7 +346,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 try {
                     success = assetStorageService.delete(deleteRequest.getAssetIds());
                 } catch (Exception e) {
-                    LOG.log(Level.INFO, "Request from central manager to create/update an asset failed: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> IDs=" + Arrays.toString(deleteRequest.getAssetIds().toArray()), e);
+                    LOG.log(Level.WARNING, "Request from central manager to create/update an asset failed: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> IDs=" + Arrays.toString(deleteRequest.getAssetIds().toArray()), e);
                 } finally {
                     sendCentralManagerMessage(
                         connection.getId(),
