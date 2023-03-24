@@ -241,7 +241,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                             identityService.getIdentityProvider().getUserByUsername(connection.getLocalRealm(), connection.getLocalUser()).getId(),
                             assetEvent.getAssetId()
                         );
-                    LOG.info("AssetEvent: {AssetId: " + assetEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: "+ isUserAsset + "}");
+                    LOG.info("AssetEvent: {AssetId: " + assetEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: " + isUserAsset + "}");
                     if (isUserAsset)
                         sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, assetEvent));
                 });
@@ -259,7 +259,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                             identityService.getIdentityProvider().getUserByUsername(connection.getLocalRealm(), connection.getLocalUser()).getId(),
                             attributeEvent.getAssetId()
                         );
-                    LOG.info("attributeEvent: {AssetId: " + attributeEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: "+ isUserAsset + "}");
+                    LOG.info("attributeEvent: {AssetId: " + attributeEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: " + isUserAsset + "}");
                     if (isUserAsset)
                         sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, attributeEvent));
                 });
