@@ -369,7 +369,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 // Force realm to be the one that this client is associated with
                 query.realm(new RealmPredicate(connection.getLocalRealm()));
 
-                if (connection.getLocalUser().isEmpty() == false)
+                if (isConnectionFiltered(connection))
                     query.userIds(
                         getUserIdByConnection(connection)
                     );
@@ -424,13 +424,17 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
         return null;
     }
 
+    private static boolean isConnectionFiltered(GatewayConnection connection) {
+        return connection.getLocalUser().isEmpty() == false;
+    }
+
     /** GATEWAY RESOURCE METHODS */
     protected List<GatewayConnection> getConnections() {
         return new ArrayList<>(connectionIdMap.values());
     }
 
     public void setConnection(GatewayConnection connection) throws Exception {
-        if (connection.getLocalUser().isEmpty() == false
+        if (isConnectionFiltered(connection)
             && getUserIdByConnection(connection) == null)
         {
             throw new Exception("Gateway connection's localUser not found: " + connection);
