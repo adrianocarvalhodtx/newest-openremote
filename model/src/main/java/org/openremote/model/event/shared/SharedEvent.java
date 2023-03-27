@@ -21,6 +21,8 @@ package org.openremote.model.event.shared;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.util.TokenBuffer;
+
 import org.openremote.model.asset.*;
 import org.openremote.model.attribute.AttributeEvent;
 import org.openremote.model.event.Event;
@@ -31,6 +33,7 @@ import org.openremote.model.rules.RulesetChangedEvent;
 import org.openremote.model.simulator.RequestSimulatorState;
 import org.openremote.model.simulator.SimulatorState;
 import org.openremote.model.syslog.SyslogEvent;
+import org.openremote.model.util.ValueUtil;
 
 /**
  * An event that can be serialized and shared between client and server.
@@ -66,5 +69,18 @@ public abstract class SharedEvent extends Event {
     }
 
     public SharedEvent() {
+    }
+
+    @Override
+    public SharedEvent clone() {
+        try {
+            TokenBuffer tb = new TokenBuffer(ValueUtil.JSON, false);
+            ValueUtil.JSON.writeValue(tb, this);
+            SharedEvent copy = ValueUtil.JSON.readValue(tb.asParser(), this.getClass());
+            return copy;
+        }
+        catch (Exception e) {
+            return null;
+        }
     }
 }

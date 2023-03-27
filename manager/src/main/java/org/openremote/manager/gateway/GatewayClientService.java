@@ -286,10 +286,11 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 AssetEvent.class,
                 new AssetFilter<AssetEvent>().setRealm(connection.getLocalRealm()),
                 assetEvent -> {
-                    boolean isUserAsset = stripAssetEvent(connection, assetEvent);
+                    AssetEvent assetEventClone = (AssetEvent)assetEvent.clone(); // Clone because the original is used downstream to update the asset locally.
+                    boolean isUserAsset = stripAssetEvent(connection, assetEventClone);
                     LOG.info("AssetEvent: {AssetId: " + assetEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: " + isUserAsset + "}");
                     if (isUserAsset)
-                        sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, assetEvent));
+                        sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, assetEventClone));
                 });
 
             clientEventService.addInternalSubscription(
@@ -297,10 +298,11 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 AttributeEvent.class,
                 new AssetFilter<AttributeEvent>().setRealm(connection.getLocalRealm()),
                 attributeEvent -> {
-                    boolean isUserAttribute = stripAttributeEvent(connection, attributeEvent, false);
+                    AttributeEvent attributeEventClone = (AttributeEvent)attributeEvent.clone(); // Clone because the original is used downstream to update the attribute locally.
+                    boolean isUserAttribute = stripAttributeEvent(connection, attributeEventClone, false);
                     LOG.info("attributeEvent: {AssetId: " + attributeEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAttribute: " + isUserAttribute + "}");
                     if (isUserAttribute)
-                        sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, attributeEvent));
+                        sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, attributeEventClone));
                 });
 
             client.connect();
