@@ -39,6 +39,7 @@ import org.openremote.manager.security.ManagerIdentityService;
 import org.openremote.manager.web.ManagerWebService;
 import org.openremote.model.asset.*;
 import org.openremote.model.asset.agent.ConnectionStatus;
+import org.openremote.model.attribute.Attribute;
 import org.openremote.model.attribute.AttributeEvent;
 import org.openremote.model.event.shared.EventRequestResponseWrapper;
 import org.openremote.model.event.shared.EventSubscription;
@@ -52,6 +53,7 @@ import org.openremote.model.query.filter.RealmPredicate;
 import org.openremote.model.security.User;
 import org.openremote.model.syslog.SyslogCategory;
 import org.openremote.model.util.ValueUtil;
+import org.openremote.model.value.MetaItemType;
 
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
@@ -234,14 +236,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 AssetEvent.class,
                 new AssetFilter<AssetEvent>().setRealm(connection.getLocalRealm()),
                 assetEvent -> {
-                    boolean isUserAsset = false;
-                    if (connection.getLocalUser().isEmpty())
-                        isUserAsset = true;
-                    else
-                        isUserAsset = assetStorageService.isUserAsset(
-                            getUserIdByConnection(connection),
-                            assetEvent.getAssetId()
-                        );
+                    boolean isUserAsset = stripAssetEvent(connection, assetEvent);
                     LOG.info("AssetEvent: {AssetId: " + assetEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: " + isUserAsset + "}");
                     if (isUserAsset)
                         sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, assetEvent));
@@ -252,16 +247,9 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 AttributeEvent.class,
                 new AssetFilter<AttributeEvent>().setRealm(connection.getLocalRealm()),
                 attributeEvent -> {
-                    boolean isUserAsset = false;
-                    if (connection.getLocalUser().isEmpty())
-                        isUserAsset = true;
-                    else
-                        isUserAsset = assetStorageService.isUserAsset(
-                            getUserIdByConnection(connection),
-                            attributeEvent.getAssetId()
-                        );
-                    LOG.info("attributeEvent: {AssetId: " + attributeEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAsset: " + isUserAsset + "}");
-                    if (isUserAsset)
+                    boolean isUserAttribute = stripAttributeEvent(connection, attributeEvent, false);
+                    LOG.info("attributeEvent: {AssetId: " + attributeEvent.getAssetId() + ", LocalUserId: "+ connection.getLocalUser() + ", isUserAttribute: " + isUserAttribute + "}");
+                    if (isUserAttribute)
                         sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, attributeEvent));
                 });
 
@@ -400,6 +388,53 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
         if (client != null) {
             client.sendMessage(message);
         }
+    }
+
+    private boolean stripAssetEvent(GatewayConnection connection, AssetEvent assetEvent) {
+        boolean isUserAsset = false;
+        if (isConnectionFiltered(connection) == false) {
+            isUserAsset = true;
+        }
+        else {
+            isUserAsset = assetStorageService.isUserAsset(
+                getUserIdByConnection(connection),
+                assetEvent.getAssetId()
+            );
+            if (isUserAsset)
+                stripOutgoingAsset(assetEvent.getAsset());
+        }
+        return isUserAsset;
+    }
+
+    private static void stripOutgoingAsset(Asset<?> asset) {
+        asset.getAttributes().forEach(attribute -> {
+            if (MetaItemType.isAccessRestrictedRead(attribute) == false) {
+                attribute.setValue(null);
+                // TODO metas are instance specific?
+                // TODO keep read/write metas
+                attribute.getMeta().clear();
+            }
+        });
+    }
+
+    private boolean stripAttributeEvent(GatewayConnection connection, AttributeEvent attributeEvent, boolean incomming) {
+        boolean isUserAttribute = false;
+        if (isConnectionFiltered(connection) == false) {
+            isUserAttribute = true;
+        }
+        else {
+            boolean isUserAsset = assetStorageService.isUserAsset(
+                getUserIdByConnection(connection),
+                attributeEvent.getAssetId()
+            );
+            if (isUserAsset) {
+                Asset<?> asset = assetStorageService.find(attributeEvent.getAssetId());
+                Attribute<?> attribute = asset.getAttribute(attributeEvent.getAttributeName()).get();
+                isUserAttribute = incomming ? MetaItemType.isAccessRestrictedWrite(attribute)
+                    : MetaItemType.isAccessRestrictedRead(attribute);
+            }
+        }
+        return isUserAttribute;
     }
 
     protected String getClientSessionKey(GatewayConnection connection) {
