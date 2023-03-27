@@ -159,6 +159,16 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 GatewayConnection connection = persistenceEvent.getEntity();
                 processConnectionChange(connection, persistenceEvent.getCause());
             });
+        
+        from(PERSISTENCE_TOPIC)
+            .routeId("GatewayServiceUserAssetLinkChanges")
+            .filter(isPersistenceEventForEntityType(UserAssetLink.class))
+            .process(exchange -> {
+                @SuppressWarnings("unchecked")
+                PersistenceEvent<UserAssetLink> persistenceEvent = exchange.getIn().getBody(PersistenceEvent.class);
+                UserAssetLink userAssetLink = persistenceEvent.getEntity();
+                processUserAssetLinkChange(userAssetLink, persistenceEvent.getCause());
+            });
     }
 
     synchronized protected void processConnectionChange(GatewayConnection connection, PersistenceEvent.Cause cause) {
@@ -188,6 +198,46 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                     break;
             }
         }
+    }
+
+    synchronized protected void processUserAssetLinkChange(UserAssetLink userAssetLink, PersistenceEvent.Cause cause) {
+        LOG.info("Modified userAssetLink '" + cause + "': " + userAssetLink);
+
+        connectionIdMap.forEach((id, connection) -> {
+            if (!connection.isDisabled()
+                && isConnectionFiltered(connection)
+                && getUserIdByConnection(connection).equals(userAssetLink.getId().getUserId())) {
+
+                Asset<?> asset = assetStorageService.find(userAssetLink.getId().getAssetId());
+                // TODO asset.isAccessPublicRead()
+
+                stripOutgoingAsset(asset);
+
+                switch (cause) {
+                    case CREATE: {
+                        AssetEvent assetEvent = new AssetEvent(
+                            AssetEvent.Cause.CREATE,
+                            asset,
+                            null
+                        );
+                        sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, assetEvent));
+                        break;
+                    }
+                    case DELETE: {
+                        AssetEvent assetEvent = new AssetEvent(
+                            AssetEvent.Cause.DELETE,
+                            asset,
+                            null
+                        );
+                        sendCentralManagerMessage(connection.getId(), messageToString(SharedEvent.MESSAGE_PREFIX, assetEvent));
+                        break;
+                    }
+                    case UPDATE:
+                        // Shouldn't happen. Ignore.
+                        break;
+                }
+            }
+        });
     }
 
     protected WebsocketIOClient<String> createGatewayClient(GatewayConnection connection) {
