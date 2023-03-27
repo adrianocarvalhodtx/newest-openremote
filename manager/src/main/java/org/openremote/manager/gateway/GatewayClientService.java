@@ -209,7 +209,6 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 && getUserIdByConnection(connection).equals(userAssetLink.getId().getUserId())) {
 
                 Asset<?> asset = assetStorageService.find(userAssetLink.getId().getAssetId());
-                // TODO asset.isAccessPublicRead()
 
                 stripOutgoingAsset(asset);
 
@@ -441,7 +440,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 if (isConnectionFiltered(connection))
                     query.userIds(
                         getUserIdByConnection(connection)
-                    );
+                    ); // TODO asset.isAccessPublicRead()
 
                 List<Asset<?>> assets = assetStorageService.findAll(readAssets.getAssetQuery());
 
@@ -475,6 +474,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
     }
 
     private boolean stripAssetEvent(GatewayConnection connection, AssetEvent assetEvent) {
+        // TODO asset.isAccessPublicRead()
         boolean isUserAsset = false;
         if (isConnectionFiltered(connection) == false) {
             isUserAsset = true;
@@ -510,6 +510,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
     }
 
     private boolean stripAttributeEvent(GatewayConnection connection, AttributeEvent attributeEvent, boolean incoming) {
+        // TODO asset.isAccessPublicRead()
         boolean isUserAttribute = false;
         if (isConnectionFiltered(connection) == false) {
             isUserAttribute = true;
