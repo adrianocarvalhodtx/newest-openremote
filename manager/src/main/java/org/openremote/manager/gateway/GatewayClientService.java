@@ -442,6 +442,9 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
 
                 List<Asset<?>> assets = assetStorageService.findAll(readAssets.getAssetQuery());
 
+                if (isConnectionFiltered(connection))
+                    assets.forEach(asset -> stripOutgoingAsset(asset));
+
                 LOG.info("Request from central manager to read assets: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", AssetQuery=" + query + ", Assets<?>=" + assets);
 
                 sendCentralManagerMessage(
