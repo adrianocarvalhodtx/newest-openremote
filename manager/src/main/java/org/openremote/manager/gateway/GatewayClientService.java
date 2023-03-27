@@ -497,6 +497,15 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 // TODO keep read/write metas
                 attribute.getMeta().clear();
             }
+            else {
+                List<String> allowedMeta = Arrays.asList(
+                    MetaItemType.ACCESS_PUBLIC_READ.getName(),
+                    MetaItemType.ACCESS_PUBLIC_WRITE.getName(),
+                    MetaItemType.ACCESS_RESTRICTED_READ.getName(),
+                    MetaItemType.ACCESS_RESTRICTED_WRITE.getName()
+                );
+                attribute.getMeta().removeIf(meta -> allowedMeta.contains(meta.getName()) == false);
+            }
         });
     }
 
