@@ -490,11 +490,10 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
     }
 
     private static void stripOutgoingAsset(Asset<?> asset) {
+        // TODO metas are instance specific?
         asset.getAttributes().forEach(attribute -> {
             if (MetaItemType.isAccessRestrictedRead(attribute) == false) {
                 attribute.setValue(null);
-                // TODO metas are instance specific?
-                // TODO keep read/write metas
                 attribute.getMeta().clear();
             }
             else {
