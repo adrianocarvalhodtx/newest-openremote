@@ -369,7 +369,10 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                     clientIdMap.put(connection.getId(), null);
                 }
             } else if (event instanceof AttributeEvent) {
-                assetProcessingService.sendAttributeEvent((AttributeEvent)event, AttributeEvent.Source.INTERNAL);
+                AttributeEvent attributeEvent = (AttributeEvent)event;
+                boolean isUserAttribute = stripAttributeEvent(connection, attributeEvent, true);
+                if (isUserAttribute)
+                    assetProcessingService.sendAttributeEvent(attributeEvent, AttributeEvent.Source.INTERNAL);
             } else if (event instanceof AssetEvent) {
                 AssetEvent assetEvent = (AssetEvent)event;
                 if (assetEvent.getCause() == AssetEvent.Cause.CREATE || assetEvent.getCause() == AssetEvent.Cause.UPDATE) {
