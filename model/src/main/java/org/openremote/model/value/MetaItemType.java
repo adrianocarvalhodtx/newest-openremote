@@ -29,6 +29,7 @@ import org.openremote.model.util.TsIgnore;
 
 import javax.validation.constraints.Pattern;
 import java.util.Date;
+import java.util.Optional;
 
 @TsIgnore
 @SuppressWarnings("rawtypes")
@@ -78,6 +79,16 @@ public final class MetaItemType {
      */
     public static final MetaItemDescriptor<Boolean> READ_ONLY = new MetaItemDescriptor<>("readOnly", ValueType.BOOLEAN);
 
+    public static final boolean isAccessRestrictedRead(Attribute<?> attribute) {
+        return attribute.getMetaValue(ACCESS_PUBLIC_READ).equals(Optional.of(true))
+            || attribute.getMetaValue(ACCESS_RESTRICTED_READ).equals(Optional.of(true))
+            || isAccessRestrictedWrite(attribute);
+    }
+
+    public static final boolean isAccessRestrictedWrite(Attribute<?> attribute) {
+        return attribute.getMetaValue(ACCESS_PUBLIC_WRITE).equals(Optional.of(true))
+            || attribute.getMetaValue(ACCESS_RESTRICTED_WRITE).equals(Optional.of(true));
+    }
 
     /* DATA POINT META */
 
