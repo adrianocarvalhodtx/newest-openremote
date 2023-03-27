@@ -399,22 +399,35 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 }
             } else if (event instanceof DeleteAssetsRequestEvent) {
                 DeleteAssetsRequestEvent deleteRequest = (DeleteAssetsRequestEvent)event;
-                LOG.finer("Request from central manager to delete asset(s): ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> IDs=" + Arrays.toString(deleteRequest.getAssetIds().toArray()));
-                boolean success = false;
-                try {
-                    success = assetStorageService.delete(deleteRequest.getAssetIds());
-                } catch (Exception e) {
-                    LOG.log(Level.WARNING, "Request from central manager to create/update an asset failed: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> IDs=" + Arrays.toString(deleteRequest.getAssetIds().toArray()), e);
-                } finally {
-                    sendCentralManagerMessage(
-                        connection.getId(),
-                        messageToString(
-                            EventRequestResponseWrapper.MESSAGE_PREFIX,
-                            new EventRequestResponseWrapper<>(
-                                messageId,
-                                new DeleteAssetsResponseEvent(success, deleteRequest.getAssetIds())
-                            )
-                    ));
+
+                boolean allowEvent = false;
+                if  (isConnectionFiltered(connection) == false) {
+                    allowEvent = true;
+                }
+                else {
+                    // TODO deny all delete assets events?
+                    // TODO allow deletion? (if meta present)
+                    // TODO allow child deletion? (if meta present in parent)
+                }
+
+                if (allowEvent) {
+                    LOG.finer("Request from central manager to delete asset(s): ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> IDs=" + Arrays.toString(deleteRequest.getAssetIds().toArray()));
+                    boolean success = false;
+                    try {
+                        success = assetStorageService.delete(deleteRequest.getAssetIds());
+                    } catch (Exception e) {
+                        LOG.log(Level.WARNING, "Request from central manager to create/update an asset failed: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> IDs=" + Arrays.toString(deleteRequest.getAssetIds().toArray()), e);
+                    } finally {
+                        sendCentralManagerMessage(
+                            connection.getId(),
+                            messageToString(
+                                EventRequestResponseWrapper.MESSAGE_PREFIX,
+                                new EventRequestResponseWrapper<>(
+                                    messageId,
+                                    new DeleteAssetsResponseEvent(success, deleteRequest.getAssetIds())
+                                )
+                        ));
+                    }
                 }
             } else if (event instanceof ReadAssetsEvent) {
                 ReadAssetsEvent readAssets = (ReadAssetsEvent)event;
