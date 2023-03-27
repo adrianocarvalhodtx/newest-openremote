@@ -384,9 +384,10 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 }
                 else {
                     // TODO deny all asset events?
-                    // TODO only deny if the event updates restricted read/write?
+                    // TODO only deny if the event updates restricted read/write? --> allow add attribute?
                     // TODO deny all meta updates?
-                    // TODO allow child creation? (if meta present)
+                    // TODO allow child creation? (if meta/tag present)
+                    // TODO allow asset creation?
                 }
 
                 if (allowEvent) {
