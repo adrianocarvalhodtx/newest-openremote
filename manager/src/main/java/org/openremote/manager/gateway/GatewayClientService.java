@@ -470,7 +470,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
         });
     }
 
-    private boolean stripAttributeEvent(GatewayConnection connection, AttributeEvent attributeEvent, boolean incomming) {
+    private boolean stripAttributeEvent(GatewayConnection connection, AttributeEvent attributeEvent, boolean incoming) {
         boolean isUserAttribute = false;
         if (isConnectionFiltered(connection) == false) {
             isUserAttribute = true;
@@ -483,7 +483,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
             if (isUserAsset) {
                 Asset<?> asset = assetStorageService.find(attributeEvent.getAssetId());
                 Attribute<?> attribute = asset.getAttribute(attributeEvent.getAttributeName()).get();
-                isUserAttribute = incomming ? MetaItemType.isAccessRestrictedWrite(attribute)
+                isUserAttribute = incoming ? MetaItemType.isAccessRestrictedWrite(attribute)
                     : MetaItemType.isAccessRestrictedRead(attribute);
             }
         }
