@@ -375,8 +375,20 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                     assetProcessingService.sendAttributeEvent(attributeEvent, AttributeEvent.Source.INTERNAL);
             } else if (event instanceof AssetEvent) {
                 AssetEvent assetEvent = (AssetEvent)event;
-                if (assetEvent.getCause() == AssetEvent.Cause.CREATE || assetEvent.getCause() == AssetEvent.Cause.UPDATE) {
-                    Asset asset = assetEvent.getAsset();
+
+                boolean allowEvent = false;
+                if  (isConnectionFiltered(connection) == false) {
+                    allowEvent = assetEvent.getCause() == AssetEvent.Cause.CREATE || assetEvent.getCause() == AssetEvent.Cause.UPDATE;
+                }
+                else {
+                    // TODO deny all asset events?
+                    // TODO only deny if the event updates restricted read/write?
+                    // TODO deny all meta updates?
+                    // TODO allow child creation? (if meta present)
+                }
+
+                if (allowEvent) {
+                    Asset<?> asset = assetEvent.getAsset();
                     asset.setRealm(connection.getLocalRealm());
                     LOG.finer("Request from central manager to create/update an asset: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> ID=" + asset.getId());
                     try {
