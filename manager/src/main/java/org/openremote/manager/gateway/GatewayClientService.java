@@ -41,6 +41,7 @@ import org.openremote.model.asset.*;
 import org.openremote.model.asset.agent.ConnectionStatus;
 import org.openremote.model.attribute.Attribute;
 import org.openremote.model.attribute.AttributeEvent;
+import org.openremote.model.attribute.MetaItem;
 import org.openremote.model.event.shared.EventRequestResponseWrapper;
 import org.openremote.model.event.shared.EventSubscription;
 import org.openremote.model.event.shared.SharedEvent;
@@ -378,15 +379,28 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                 AssetEvent assetEvent = (AssetEvent)event;
 
                 boolean allowEvent = false;
+                boolean linkLocalUser = false;
                 if  (isConnectionFiltered(connection) == false) {
                     allowEvent = assetEvent.getCause() == AssetEvent.Cause.CREATE || assetEvent.getCause() == AssetEvent.Cause.UPDATE;
                 }
                 else {
-                    // TODO deny all asset events?
-                    // TODO only deny if the event updates restricted read/write? --> allow add attribute?
-                    // TODO deny all meta updates?
-                    // TODO allow child creation? (if meta/tag present)
-                    // TODO allow asset creation?
+                    // TODO only allow self/child create/update if meta/tag present in self/parent
+
+                    boolean assetExists = assetEvent.getAssetId() != null && assetStorageService.find(assetEvent.getAssetId()) != null;
+                    if (assetExists) {
+                        LOG.log(Level.WARNING, "Central manager requested to create an asset whose id=" + assetEvent.getAssetId() + " already exists");
+                    }
+                    else if (assetEvent.getCause() == AssetEvent.Cause.CREATE) {
+                        assetEvent.getAsset().getAttributes().forEach(attribute -> {
+                            attribute.getMeta().clear();
+                            attribute.getMeta().addAll(
+                                new MetaItem<Boolean>(MetaItemType.ACCESS_RESTRICTED_READ, true),
+                                new MetaItem<Boolean>(MetaItemType.ACCESS_RESTRICTED_WRITE, true)
+                            );
+                        });
+                        linkLocalUser = true;
+                        allowEvent = true;
+                    }
                 }
 
                 if (allowEvent) {
@@ -398,6 +412,16 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                     } catch (Exception e) {
                         LOG.log(Level.WARNING, "Request from central manager to create/update an asset failed: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> ID=" + asset.getId(), e);
                     }
+
+                    if (linkLocalUser) {
+                        try {
+                            assetStorageService.storeUserAssetLinks(Arrays.asList(
+                                new UserAssetLink(connection.getLocalRealm(), getUserIdByConnection(connection), asset.getId())
+                            ));
+                        } catch (Exception e) {
+                            LOG.log(Level.WARNING, "Request from central manager to create an asset failed: asset created but user/asset link failed: ID=" + connection.getId() + ", Realm=" + connection.getLocalRealm() + ", Asset<?> ID=" + asset.getId(), e);
+                        }
+                    }
                 }
             } else if (event instanceof DeleteAssetsRequestEvent) {
                 DeleteAssetsRequestEvent deleteRequest = (DeleteAssetsRequestEvent)event;
@@ -407,9 +431,7 @@ public class GatewayClientService extends RouteBuilder implements ContainerServi
                     allowEvent = true;
                 }
                 else {
-                    // TODO deny all delete assets events?
-                    // TODO allow deletion? (if meta present)
-                    // TODO allow child deletion? (if meta present in parent)
+                    // TODO allow self/child deletion if meta/tag present in self/parent
                 }
 
                 if (allowEvent) {
