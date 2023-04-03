@@ -20,6 +20,7 @@
 package org.openremote.manager.mqtt;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.handler.codec.mqtt.MqttQoS;
 import org.apache.activemq.artemis.spi.core.protocol.RemotingConnection;
 import org.apache.camel.builder.RouteBuilder;
@@ -85,6 +86,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
     public static final String ATTRIBUTE_VALUE_TOPIC = "attributevalue";
     public static final String ATTRIBUTE_VALUE_WRITE_TOPIC = "writeattributevalue";
     public static final String ATTRIBUTE_VALUE_WRITE_ULTRALIGHT_TOPIC = "wav-ul";
+    public static final String ATTRIBUTE_VALUE_WRITE_NP_TOPIC = "wav-np";
     private static final Logger LOG = SyslogCategory.getLogger(API, DefaultMQTTHandler.class);
     protected AssetStorageService assetStorageService;
     protected final ConcurrentMap<String, SubscriberInfo> connectionSubscriberInfoMap = new ConcurrentHashMap<>();
@@ -393,20 +395,40 @@ public class DefaultMQTTHandler extends MQTTHandler {
     public Set<String> getPublishListenerTopics() {
         return Set.of(
             TOKEN_SINGLE_LEVEL_WILDCARD + "/" + TOKEN_SINGLE_LEVEL_WILDCARD + "/" + ATTRIBUTE_VALUE_WRITE_TOPIC            + "/" + TOKEN_MULTI_LEVEL_WILDCARD,
-            TOKEN_SINGLE_LEVEL_WILDCARD + "/" + TOKEN_SINGLE_LEVEL_WILDCARD + "/" + ATTRIBUTE_VALUE_WRITE_ULTRALIGHT_TOPIC + "/" + TOKEN_MULTI_LEVEL_WILDCARD
+            TOKEN_SINGLE_LEVEL_WILDCARD + "/" + TOKEN_SINGLE_LEVEL_WILDCARD + "/" + ATTRIBUTE_VALUE_WRITE_ULTRALIGHT_TOPIC + "/" + TOKEN_MULTI_LEVEL_WILDCARD,
+            TOKEN_SINGLE_LEVEL_WILDCARD + "/" + TOKEN_SINGLE_LEVEL_WILDCARD + "/" + ATTRIBUTE_VALUE_WRITE_NP_TOPIC         + "/" + TOKEN_MULTI_LEVEL_WILDCARD
         );
     }
 
     @Override
     public void onPublish(RemotingConnection connection, Topic topic, ByteBuf body) {
         List<String> topicTokens = topic.getTokens();
-        String payloadContent = body.toString(StandardCharsets.UTF_8);
         Object value = null;
         if (topicTokens.get(2).equalsIgnoreCase(ATTRIBUTE_VALUE_WRITE_TOPIC)) {
+            String payloadContent = body.toString(StandardCharsets.UTF_8);
             value = ValueUtil.parse(payloadContent).orElse(null);
         }
         else if (topicTokens.get(2).equalsIgnoreCase(ATTRIBUTE_VALUE_WRITE_ULTRALIGHT_TOPIC)) {
+            String payloadContent = body.toString(StandardCharsets.UTF_8);
             value = ValueUtil.parseUltralight(payloadContent).orElse(null);
+        }
+        else if (topicTokens.get(2).equalsIgnoreCase(ATTRIBUTE_VALUE_WRITE_NP_TOPIC)) {
+            short packetType = body.readUnsignedByte();
+            if (packetType != 4) {
+                LOG.warning("NP: Packet type not supported, ignoring: topic=" + topic + ", packet=\n" + ByteBufUtil.prettyHexDump(body));
+                return;
+            }
+            long timestampTx = body.readUnsignedInt();
+            String[] payload = body.readBytes(body.readableBytes() - 1).toString(StandardCharsets.UTF_8).split("\\|", 2);
+            String payloadTimestamp = payload[0];
+            String payloadUltralight = payload[1];
+            short postamble = body.readUnsignedByte();
+            boolean integrityCheck = ((timestampTx + postamble) & 0xff) == 0;
+            if (integrityCheck == false) {
+                LOG.warning("NP: packet integrity verification failed: topic=" + topic + ", packet=\n" + ByteBufUtil.prettyHexDump(body));
+                return;
+            }
+            value = ValueUtil.parseUltralight(payloadUltralight).orElse(null);
         }
         AttributeEvent attributeEvent = buildAttributeEvent(topicTokens, value);
         Map<String, Object> headers = prepareHeaders(topicRealm(topic), connection);
@@ -571,7 +593,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
     }
 
     protected static boolean isAttributeValueWriteTopic(Topic topic) {
-        return ATTRIBUTE_VALUE_WRITE_TOPIC.equalsIgnoreCase(topicTokenIndexToString(topic, 2)) || ATTRIBUTE_VALUE_WRITE_ULTRALIGHT_TOPIC.equalsIgnoreCase(topicTokenIndexToString(topic, 2));
+        return ATTRIBUTE_VALUE_WRITE_TOPIC.equalsIgnoreCase(topicTokenIndexToString(topic, 2)) || ATTRIBUTE_VALUE_WRITE_ULTRALIGHT_TOPIC.equalsIgnoreCase(topicTokenIndexToString(topic, 2)) || ATTRIBUTE_VALUE_WRITE_NP_TOPIC.equalsIgnoreCase(topicTokenIndexToString(topic, 2));
     }
 
     protected static boolean isAssetTopic(Topic topic) {
