@@ -31,6 +31,7 @@ import org.openremote.manager.asset.AssetStorageService;
 import org.openremote.manager.event.ClientEventService;
 import org.openremote.model.Constants;
 import org.openremote.model.Container;
+import org.openremote.model.asset.Asset;
 import org.openremote.model.asset.AssetEvent;
 import org.openremote.model.asset.AssetFilter;
 import org.openremote.model.attribute.AttributeEvent;
@@ -306,7 +307,13 @@ public class DefaultMQTTHandler extends MQTTHandler {
         }
 
         if (isAttributeValueWriteTopic(topic)) {
-            if (topic.getTokens().size() != 5 || !Pattern.matches(ASSET_ID_REGEXP, topicTokenIndexToString(topic, 4))) {
+            if (ATTRIBUTE_VALUE_WRITE_NP_TOPIC.equalsIgnoreCase(topicTokenIndexToString(topic, 2))) {
+                if (topic.getTokens().size() < 5) {
+                    LOG.finest("NP: Publish attribute value topic should be {realm}/{clientId}/wav-np/{assetId}/...: topic=" + topic + ", connection=" + mqttBrokerService.connectionToString(connection));
+                    return false;
+                }
+            }
+            else if (topic.getTokens().size() != 5 || !Pattern.matches(ASSET_ID_REGEXP, topicTokenIndexToString(topic, 4))) {
                 LOG.finest("Publish attribute value topic should be {realm}/{clientId}/writeattributevalue/{attributeName}/{assetId}: topic=" + topic + ", connection=" + mqttBrokerService.connectionToString(connection));
                 return false;
             }
@@ -452,9 +459,31 @@ public class DefaultMQTTHandler extends MQTTHandler {
         }
     }
 
-    protected static AttributeEvent buildAttributeEvent(List<String> topicTokens, Object value) {
-        String attributeName = topicTokens.get(3);
-        String assetId = topicTokens.get(4);
+    protected AttributeEvent buildAttributeEvent(List<String> topicTokens, Object value) {
+        String attributeName;
+        String assetId;
+
+        if (topicTokens.get(2).equalsIgnoreCase(ATTRIBUTE_VALUE_WRITE_NP_TOPIC)) {
+            assetId = topicTokens.get(3);
+            Asset<?> asset = assetStorageService.find(assetId);
+            if (asset == null) {
+                LOG.warning("NP: Asset doesn't exist or unaccessible: topic=" + topicTokens.toString());
+                return null;
+            }
+            
+            int n = 4;
+            while (n < (topicTokens.size() - 1)) {
+                // TODO
+                n++;
+            }
+
+            attributeName = topicTokens.get(n);
+        }
+        else {
+            assetId = topicTokens.get(4);
+            attributeName = topicTokens.get(3);
+        }
+
         return new AttributeEvent(assetId, attributeName, value);
     }
 
