@@ -39,6 +39,7 @@ import org.openremote.model.event.TriggeredEventSubscription;
 import org.openremote.model.event.shared.CancelEventSubscription;
 import org.openremote.model.event.shared.EventSubscription;
 import org.openremote.model.event.shared.SharedEvent;
+import org.openremote.model.query.AssetQuery;
 import org.openremote.model.syslog.SyslogCategory;
 import org.openremote.model.util.ValueUtil;
 
@@ -472,7 +473,17 @@ public class DefaultMQTTHandler extends MQTTHandler {
             
             int n = 4;
             while (n < (topicTokens.size() - 1)) {
-                // TODO
+                asset = assetStorageService.find(
+                    new AssetQuery()
+                    .parents(asset.getId())
+                    .attributeValue("PtDtxcolabEecNewestProtoId", topicTokens.get(n))
+                );
+
+                if (asset == null) {
+                    LOG.warning("NP: Asset not found or unaccessible: topic=" + topicTokens.toString());
+                    return null;
+                }
+
                 n++;
             }
 
