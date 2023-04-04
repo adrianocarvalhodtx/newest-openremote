@@ -467,7 +467,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
             assetId = topicTokens.get(3);
             Asset<?> asset = assetStorageService.find(assetId);
             if (asset == null) {
-                LOG.warning("NP: Asset doesn't exist or unaccessible: topic=" + topicTokens.toString());
+                LOG.warning("NP: Asset not found or unaccessible: topic=" + topicTokens.toString());
                 return null;
             }
             
