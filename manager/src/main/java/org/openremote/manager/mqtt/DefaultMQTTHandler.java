@@ -403,6 +403,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
     @Override
     public void onPublish(RemotingConnection connection, Topic topic, ByteBuf body) {
         List<String> topicTokens = topic.getTokens();
+        long timestamp = -1;
         Object value = null;
         if (topicTokens.get(2).equalsIgnoreCase(ATTRIBUTE_VALUE_WRITE_TOPIC)) {
             String payloadContent = body.toString(StandardCharsets.UTF_8);
@@ -421,6 +422,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
             long timestampTx = body.readUnsignedInt();
             String[] payload = body.readBytes(body.readableBytes() - 1).toString(StandardCharsets.UTF_8).split("\\|", 2);
             String payloadTimestamp = payload[0];
+            timestamp = (long)Integer.parseInt(payloadTimestamp) * 1000;
             String payloadUltralight = payload[1];
             short postamble = body.readUnsignedByte();
             boolean integrityCheck = ((timestampTx + postamble) & 0xff) == 0;
@@ -431,6 +433,9 @@ public class DefaultMQTTHandler extends MQTTHandler {
             value = ValueUtil.parseUltralight(payloadUltralight).orElse(null);
         }
         AttributeEvent attributeEvent = buildAttributeEvent(topicTokens, value);
+        if (timestamp != -1) {
+            attributeEvent.setTimestamp(timestamp);
+        }
         Map<String, Object> headers = prepareHeaders(topicRealm(topic), connection);
         messageBrokerService.getFluentProducerTemplate()
             .withHeaders(headers)
