@@ -464,8 +464,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
         String assetId;
 
         if (topicTokens.get(2).equalsIgnoreCase(ATTRIBUTE_VALUE_WRITE_NP_TOPIC)) {
-            assetId = topicTokens.get(3);
-            Asset<?> asset = assetStorageService.find(assetId);
+            Asset<?> asset = assetStorageService.find(topicTokens.get(3));
             if (asset == null) {
                 LOG.warning("NP: Asset not found or unaccessible: topic=" + topicTokens.toString());
                 return null;
@@ -477,6 +476,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
                 n++;
             }
 
+            assetId = asset.getId();
             attributeName = topicTokens.get(n);
         }
         else {
