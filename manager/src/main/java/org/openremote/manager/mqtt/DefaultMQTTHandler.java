@@ -309,7 +309,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
 
         if (isAttributeValueWriteTopic(topic)) {
             if (ATTRIBUTE_VALUE_WRITE_NP_TOPIC.equalsIgnoreCase(topicTokenIndexToString(topic, 2))) {
-                if (topic.getTokens().size() < 5) {
+                if (topic.getTokens().size() < 6) {
                     LOG.finest("NP: Publish attribute value topic should be {realm}/{clientId}/wav-np/{assetId}/...: topic=" + topic + ", connection=" + mqttBrokerService.connectionToString(connection));
                     return false;
                 }
@@ -472,7 +472,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
             }
             
             int n = 4;
-            while (n < (topicTokens.size() - 1)) {
+            while (n < (topicTokens.size() - 2)) {
                 asset = assetStorageService.find(
                     new AssetQuery()
                     .parents(asset.getId())
@@ -488,7 +488,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
             }
 
             assetId = asset.getId();
-            attributeName = topicTokens.get(n);
+            attributeName = topicTokens.get(n) + "_" + topicTokens.get(n + 1);
         }
         else {
             assetId = topicTokens.get(4);
