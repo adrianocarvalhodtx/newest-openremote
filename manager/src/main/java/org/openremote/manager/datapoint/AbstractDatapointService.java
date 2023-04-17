@@ -173,6 +173,16 @@ public abstract class AbstractDatapointService<T extends Datapoint> implements C
                                                   final Integer stepSize,
                                                   LocalDateTime fromTimestamp,
                                                   LocalDateTime toTimestamp) {
+        return getValueDatapoints(assetId, attribute, datapointInterval, stepSize, fromTimestamp, toTimestamp, true);
+    }
+
+    public ValueDatapoint<?>[] getValueDatapoints(String assetId,
+                                                  Attribute<?> attribute,
+                                                  DatapointInterval datapointInterval,
+                                                  final Integer stepSize,
+                                                  LocalDateTime fromTimestamp,
+                                                  LocalDateTime toTimestamp,
+                                                  final Boolean allowDownsample) {
 
         AttributeRef attributeRef = new AttributeRef(assetId, attribute.getName());
 
@@ -188,7 +198,7 @@ public abstract class AbstractDatapointService<T extends Datapoint> implements C
                         boolean isNumber = Number.class.isAssignableFrom(attributeType);
                         boolean isBoolean = Boolean.class.isAssignableFrom(attributeType);
                         StringBuilder query = new StringBuilder();
-                        boolean downsample = isNumber || isBoolean;
+                        boolean downsample = allowDownsample && (isNumber || isBoolean);
 
                         String truncate = null;
                         String part = null;

@@ -80,7 +80,8 @@ public class AssetDatapointResourceImpl extends ManagerWebResource implements As
                                              DatapointInterval interval,
                                              Integer stepSize,
                                              long fromTimestamp,
-                                             long toTimestamp) {
+                                             long toTimestamp,
+                                             Boolean allowDownsample) {
         try {
 
             if (isRestrictedUser() && !assetStorageService.isUserAsset(getUserId(), assetId)) {
@@ -107,7 +108,8 @@ public class AssetDatapointResourceImpl extends ManagerWebResource implements As
                     interval,
                     stepSize,
                     LocalDateTime.ofInstant(Instant.ofEpochMilli(fromTimestamp), ZoneId.systemDefault()),
-                    LocalDateTime.ofInstant(Instant.ofEpochMilli(toTimestamp), ZoneId.systemDefault()));
+                    LocalDateTime.ofInstant(Instant.ofEpochMilli(toTimestamp), ZoneId.systemDefault()),
+                    allowDownsample);
         } catch (IllegalStateException ex) {
             throw new BadRequestException(ex);
         } catch (UnsupportedOperationException ex) {
