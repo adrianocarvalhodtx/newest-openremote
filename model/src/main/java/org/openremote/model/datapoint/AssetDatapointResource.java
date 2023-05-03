@@ -51,7 +51,7 @@ public interface AssetDatapointResource {
                                    @QueryParam("step") Integer stepSize,
                                    @QueryParam("fromTimestamp") long fromTimestamp,
                                    @QueryParam("toTimestamp") long toTimestamp,
-                                   @QueryParam("allowDownsample") Boolean allowDownsample);
+                                   @DefaultValue("true") @QueryParam("allowDownsample") Boolean allowDownsample);
 
     @GET
     @Path("periods")
