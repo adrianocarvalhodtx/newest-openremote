@@ -423,7 +423,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
         }
         else if (topicTokens.get(2).equalsIgnoreCase(ATTRIBUTE_VALUE_WRITE_NP_TOPIC)) {
             short packetType = body.readUnsignedByte();
-            if (packetType != 4) {
+            if (packetType != 4 && packetType != 5) {
                 LOG.warning("NP: Packet type not supported, ignoring: topic=" + topic + ", packet=\n" + ByteBufUtil.prettyHexDump(body));
                 return;
             }
@@ -438,7 +438,12 @@ public class DefaultMQTTHandler extends MQTTHandler {
                 LOG.warning("NP: packet integrity verification failed: topic=" + topic + ", packet=\n" + ByteBufUtil.prettyHexDump(body));
                 return;
             }
-            value = ValueUtil.parseUltralight(payloadUltralight).orElse(null);
+            if (packetType == 4) {
+                value = ValueUtil.parseUltralight(payloadUltralight).orElse(null);
+            }
+            else if (packetType == 5) {
+                value = ValueUtil.parseUltralight("Alarm|" + payloadUltralight).orElse(null);
+            }
         }
         AttributeEvent attributeEvent = buildAttributeEvent(topicTokens, value);
         if (timestamp != -1) {
