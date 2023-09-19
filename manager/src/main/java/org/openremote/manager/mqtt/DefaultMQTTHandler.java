@@ -430,7 +430,7 @@ public class DefaultMQTTHandler extends MQTTHandler {
             long timestampTx = body.readUnsignedInt(); // data in seconds.
             String[] payload = body.readBytes(body.readableBytes() - 1).toString(StandardCharsets.UTF_8).split("\\|", 2);
             String payloadTimestamp = payload[0];
-            timestamp = Long.parseLong(payloadTimestamp) / 1000; // data in microseonds. OR works with milliseconds.
+            timestamp = Long.parseLong(payloadTimestamp) / 1000; // data in microseconds. OR works with milliseconds.
             String payloadUltralight = payload[1];
             short postamble = body.readUnsignedByte();
             boolean integrityCheck = ((timestampTx + postamble) & 0xff) == 0;
