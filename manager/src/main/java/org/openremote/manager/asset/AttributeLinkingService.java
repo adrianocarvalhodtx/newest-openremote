@@ -181,7 +181,11 @@ public class AttributeLinkingService implements ContainerService, AssetUpdatePro
                     value[0] = val;
                 }
 
-                sendAttributeEvent(new AttributeEvent(attributeLink.getAttributeRef(), value[0]));
+                sendAttributeEvent(
+                    attribute.getTimestamp().isPresent() ?
+                        new AttributeEvent(attributeLink.getAttributeRef(), value[0], attribute.getTimestamp().get()) :
+                        new AttributeEvent(attributeLink.getAttributeRef(), value[0])
+                    );
             }
 
         });
